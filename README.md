@@ -19,7 +19,7 @@ pnpm install
 pnpm dev
 ```
 
-Open your bot in Telegram → **`/start`**. First start links your chat. Use the menu buttons at the bottom (Chats, Settings, Help, Status).
+Open your bot in Telegram → **`/start`**. First start links your chat. Use the inline buttons on the welcome message (Chats, Settings, Help, Status).
 
 ## Commands
 
@@ -42,3 +42,7 @@ pnpm check       # both
 ```
 
 Husky hooks run automatically after `pnpm install`.
+
+## Railway
+
+Deploy as a single worker service with a `/data` volume. See **[RAILWAY.md](./RAILWAY.md)** for env vars and setup.

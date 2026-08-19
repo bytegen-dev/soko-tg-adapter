@@ -8,7 +8,7 @@ import {
 import { buildChatRoomUrl } from "../sokosumi/links.js";
 import type { StateStore } from "../state.js";
 import { E, withEmoji } from "./emoji.js";
-import { escapeHtml } from "./text.js";
+import { escapeHtml, escapeTelegramPlain } from "./text.js";
 import { formatMessageHtml } from "./markup.js";
 
 export const READ_PAGE_SIZE = 12;
@@ -33,13 +33,13 @@ export function formatReadBody(messages: ChatRoomMessage[]): string {
       const body = message.deletedAt
         ? escapeHtml("[deleted]")
         : formatMessageHtml(message.content, 420);
-      return `<b>${escapeHtml(sender)}</b>: ${body}`;
+      return `<b>${escapeTelegramPlain(sender)}</b>: ${body}`;
     })
     .join("\n\n");
 }
 
 export function buildReadText(page: ReadViewPage): string {
-  const header = `<b>${escapeHtml(page.title)}</b>`;
+  const header = `<b>${escapeTelegramPlain(page.title)}</b>`;
   const footer =
     page.nextCursor === null
       ? "\n\n<i>Start of history</i>"

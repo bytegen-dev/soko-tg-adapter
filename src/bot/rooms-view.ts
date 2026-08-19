@@ -3,6 +3,7 @@ import { InlineKeyboard } from "grammy";
 import { roomDisplayName, type ChatRoom } from "../sokosumi/client.js";
 import type { StateStore } from "../state.js";
 import { E, roomListPrefix, withEmoji } from "./emoji.js";
+import { homeMenuRow } from "./menu-keyboard.js";
 
 export const ROOMS_PAGE_SIZE = 6;
 const MAX_BUTTON_LABEL = 36;
@@ -105,5 +106,5 @@ export function roomsKeyboard(
   keyboard
     .text(withEmoji(E.refresh, "Refresh"), "rooms:page:0")
     .text(withEmoji(E.settings, "Settings"), "settings:refresh");
-  return keyboard;
+  return homeMenuRow(keyboard);
 }

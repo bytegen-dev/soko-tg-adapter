@@ -29,8 +29,8 @@ export function buildQuietHoursText(state: StateStore): string {
     `Quiet from: ${formatClockTime(snapshot.quietHoursStart)}`,
     `Quiet until: ${formatClockTime(snapshot.quietHoursEnd)}`,
     "",
-    "<i>Example: 9:00 AM to 6:00 PM pauses alerts during the workday.</i>",
-    "<i>For nights only, set 6:00 PM to 9:00 AM.</i>",
+    `<i>Pauses alerts from 6:00 PM until 9:00 AM in your timezone.</i>`,
+    `<i>For a workday window instead, set Quiet from 9:00 AM and Quiet until 6:00 PM.</i>`,
   ].join("\n");
 }
 
@@ -43,8 +43,8 @@ export function quietHoursKeyboard(state: StateStore): InlineKeyboard {
   }
   keyboard
     .row()
-    .text(withEmoji(E.reply, "Start time"), "quiet:pick:start")
-    .text(withEmoji(E.reply, "End time"), "quiet:pick:end");
+    .text("Quiet from", "quiet:pick:start")
+    .text("Quiet until", "quiet:pick:end");
   keyboard.row().text(withEmoji(E.status, "Timezone"), "quiet:pick:tz");
   keyboard.row().text(withEmoji(E.back, "Back to settings"), "settings:refresh");
   return keyboard;

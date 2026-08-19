@@ -1,7 +1,12 @@
 import type { Bot, Context } from "grammy";
 
 import { ensureAllowed } from "./access.js";
-import { mainMenuKeyboard, matchMenuKey, type MenuKey } from "./menu-keyboard.js";
+import {
+  clearReplyKeyboard,
+  mainMenuInline,
+  matchMenuKey,
+} from "./menu-keyboard.js";
+import { editMessageOrReply } from "./message-utils.js";
 import { resolveRoomId } from "./resolve-room.js";
 import { sendReadView } from "./read-actions.js";
 import { buildRoomsText, roomsKeyboard } from "./rooms-view.js";
@@ -12,8 +17,7 @@ import {
   deliverRoomMessage,
   sendComposedMessage,
 } from "./send-actions.js";
-import { HELP_TEXT, START_TEXT, LOADING_CHATS, LOADING_SETTINGS, ERROR_LOAD_CHATS, ERROR_LOAD_SETTINGS, ERROR_GENERIC } from "./text.js";
-import { describeQuietHours } from "./quiet-hours.js";
+import { HELP_TEXT, START_TEXT, LOADING_CHATS, LOADING_SETTINGS, ERROR_LOAD_CHATS, ERROR_LOAD_SETTINGS, ERROR_GENERIC, buildStatusText } from "./text.js";
 import { E, withEmoji } from "./emoji.js";
 import type { Config } from "../config.js";
 import { SokosumiClient } from "../sokosumi/client.js";
@@ -40,47 +44,21 @@ async function syncRooms(
   return rooms;
 }
 
-function statusText(config: Config, state: StateStore): string {
-  const muted = state.snapshot.muteAll
-    ? `${E.muted} all muted`
-    : state.snapshot.mutedRoomIds.length > 0
-      ? `${E.muted} ${state.snapshot.mutedRoomIds.length} chat(s) muted`
-      : `${E.unmute} alerts on`;
-  return [
-    `${E.status} Status`,
-    "",
-    `Organization: ${config.SOKOSUMI_ORG_SLUG}`,
-    `Poll interval: ${config.POLL_INTERVAL_MS}ms`,
-    `Alerts: ${muted}`,
-    `Quiet hours: ${describeQuietHours(state.snapshot)}`,
-  ].join("\n");
-}
-
 async function replyRooms(
   ctx: Context,
   client: SokosumiClient,
   state: StateStore,
-  menu: ReturnType<typeof mainMenuKeyboard>,
 ): Promise<void> {
-  const loading = await ctx.reply(LOADING_CHATS, { reply_markup: menu });
+  const loading = await ctx.reply(LOADING_CHATS);
   try {
     const rooms = await syncRooms(client, state);
-    await ctx.api.editMessageText(
-      loading.chat.id,
-      loading.message_id,
-      buildRoomsText(rooms),
-      {
-        parse_mode: "HTML",
-        reply_markup: roomsKeyboard(rooms, state, state.snapshot.selfUserId),
-      },
-    );
+    await editMessageOrReply(ctx, loading, buildRoomsText(rooms), {
+      parse_mode: "HTML",
+      reply_markup: roomsKeyboard(rooms, state, state.snapshot.selfUserId),
+    });
   } catch (error) {
     console.error("[bot] rooms failed:", error);
-    await ctx.api.editMessageText(
-      loading.chat.id,
-      loading.message_id,
-      ERROR_LOAD_CHATS,
-    );
+    await editMessageOrReply(ctx, loading, ERROR_LOAD_CHATS);
   }
 }
 
@@ -89,14 +67,13 @@ async function replySettings(
   config: Config,
   client: SokosumiClient,
   state: StateStore,
-  menu: ReturnType<typeof mainMenuKeyboard>,
 ): Promise<void> {
-  const loading = await ctx.reply(LOADING_SETTINGS, { reply_markup: menu });
+  const loading = await ctx.reply(LOADING_SETTINGS);
   try {
     const rooms = await syncRooms(client, state);
-    await ctx.api.editMessageText(
-      loading.chat.id,
-      loading.message_id,
+    await editMessageOrReply(
+      ctx,
+      loading,
       buildSettingsText(
         state,
         rooms,
@@ -110,11 +87,7 @@ async function replySettings(
     );
   } catch (error) {
     console.error("[bot] settings failed:", error);
-    await ctx.api.editMessageText(
-      loading.chat.id,
-      loading.message_id,
-      ERROR_LOAD_SETTINGS,
-    );
+    await editMessageOrReply(ctx, loading, ERROR_LOAD_SETTINGS);
   }
 }
 
@@ -124,8 +97,6 @@ export function registerCommands(
   client: SokosumiClient,
   state: StateStore,
 ): void {
-  const menu = mainMenuKeyboard();
-
   bot.use(async (ctx, next) => {
     const text = ctx.message?.text;
     if (text) {
@@ -139,12 +110,11 @@ export function registerCommands(
       if (!(await ensureAllowed(ctx, config, state))) {
         return;
       }
-      await ctx.reply(START_TEXT, { reply_markup: menu });
+      await clearReplyKeyboard(ctx);
+      await ctx.reply(START_TEXT, { reply_markup: mainMenuInline() });
     } catch (error) {
       console.error("[bot] /start failed:", error);
-      await ctx.reply(ERROR_GENERIC, {
-        reply_markup: menu,
-      });
+      await ctx.reply(ERROR_GENERIC);
     }
   });
 
@@ -152,28 +122,30 @@ export function registerCommands(
     if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
-    await ctx.reply(HELP_TEXT, { reply_markup: menu });
+    await ctx.reply(HELP_TEXT, { reply_markup: mainMenuInline() });
   });
 
   bot.command("status", async (ctx) => {
     if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
-    await ctx.reply(statusText(config, state), { reply_markup: menu });
+    await ctx.reply(buildStatusText(config, state), {
+      reply_markup: mainMenuInline(),
+    });
   });
 
   bot.command("settings", async (ctx) => {
     if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
-    await replySettings(ctx, config, client, state, menu);
+    await replySettings(ctx, config, client, state);
   });
 
   bot.command("rooms", async (ctx) => {
     if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
-    await replyRooms(ctx, client, state, menu);
+    await replyRooms(ctx, client, state);
   });
 
   bot.on("message:text").filter(
@@ -190,16 +162,18 @@ export function registerCommands(
 
       switch (key) {
         case "chats":
-          await replyRooms(ctx, client, state, menu);
+          await replyRooms(ctx, client, state);
           break;
         case "settings":
-          await replySettings(ctx, config, client, state, menu);
+          await replySettings(ctx, config, client, state);
           break;
         case "help":
-          await ctx.reply(HELP_TEXT, { reply_markup: menu });
+          await ctx.reply(HELP_TEXT, { reply_markup: mainMenuInline() });
           break;
         case "status":
-          await ctx.reply(statusText(config, state), { reply_markup: menu });
+          await ctx.reply(buildStatusText(config, state), {
+            reply_markup: mainMenuInline(),
+          });
           break;
       }
     },
@@ -251,13 +225,10 @@ export function registerCommands(
           session.title,
           session.roomIndex,
           content,
-          menu,
         );
       } catch (error) {
         console.error("[bot] compose send failed:", error);
-        await ctx.reply(withEmoji(E.warn, "Could not send message."), {
-          reply_markup: menu,
-        });
+        await ctx.reply(withEmoji(E.warn, "Could not send message."));
       }
     },
   );
@@ -269,15 +240,13 @@ export function registerCommands(
 
     const token = ctx.match?.trim();
     if (!token) {
-      await ctx.reply("Usage: /read <number from /rooms or room id>", {
-        reply_markup: menu,
-      });
+      await ctx.reply("Usage: /read <number from /rooms or room id>");
       return;
     }
 
     const roomId = resolveRoomId(state, token);
     if (!roomId) {
-      await ctx.reply("Unknown chat. Run /rooms first.", { reply_markup: menu });
+      await ctx.reply("Unknown chat. Run /rooms first.");
       return;
     }
 
@@ -288,9 +257,7 @@ export function registerCommands(
       await sendReadView(ctx, config, client, state, roomId, roomIndex);
     } catch (error) {
       console.error("[bot] /read failed:", error);
-      await ctx.reply(withEmoji(E.warn, "Could not load messages for that chat."), {
-        reply_markup: menu,
-      });
+      await ctx.reply(withEmoji(E.warn, "Could not load messages for that chat."));
     }
   });
 
@@ -304,7 +271,6 @@ export function registerCommands(
     if (spaceIndex <= 0) {
       await ctx.reply(
         withEmoji(E.reply, "Usage: /send <number> <message> or tap Reply in a chat."),
-        { reply_markup: menu },
       );
       return;
     }
@@ -312,15 +278,13 @@ export function registerCommands(
     const roomToken = raw.slice(0, spaceIndex);
     const content = raw.slice(spaceIndex + 1).trim();
     if (!content) {
-      await ctx.reply(withEmoji(E.warn, "Message cannot be empty."), {
-        reply_markup: menu,
-      });
+      await ctx.reply(withEmoji(E.warn, "Message cannot be empty."));
       return;
     }
 
     const roomId = resolveRoomId(state, roomToken);
     if (!roomId) {
-      await ctx.reply("Unknown chat. Run /rooms first.", { reply_markup: menu });
+      await ctx.reply("Unknown chat. Run /rooms first.");
       return;
     }
 
@@ -329,13 +293,11 @@ export function registerCommands(
 
     try {
       await deliverRoomMessage(client, state, roomId, content);
-      await ctx.reply(withEmoji(E.sent, "Sent."), { reply_markup: menu });
+      await ctx.reply(withEmoji(E.sent, "Sent."));
       await sendReadView(ctx, config, client, state, roomId, roomIndex);
     } catch (error) {
       console.error("[bot] /send failed:", error);
-      await ctx.reply(withEmoji(E.warn, "Could not send message."), {
-        reply_markup: menu,
-      });
+      await ctx.reply(withEmoji(E.warn, "Could not send message."));
     }
   });
 
@@ -343,24 +305,22 @@ export function registerCommands(
     if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
-    const cancelled = await cancelCompose(ctx, menu);
+    const cancelled = await cancelCompose(ctx);
     if (!cancelled) {
-      await ctx.reply("Nothing to cancel.", { reply_markup: menu });
+      await ctx.reply("Nothing to cancel.");
     }
   });
 
   async function muteByToken(ctx: Context, mute: boolean): Promise<void> {
     const token = matchCommandArg(ctx);
     if (!token) {
-      await ctx.reply(`Usage: /${mute ? "mute" : "unmute"} <number from /rooms>`, {
-        reply_markup: menu,
-      });
+      await ctx.reply(`Usage: /${mute ? "mute" : "unmute"} <number from /rooms>`);
       return;
     }
 
     const roomId = resolveRoomId(state, token);
     if (!roomId) {
-      await ctx.reply("Unknown chat. Run /rooms first.", { reply_markup: menu });
+      await ctx.reply("Unknown chat. Run /rooms first.");
       return;
     }
 
@@ -372,7 +332,6 @@ export function registerCommands(
     await state.save();
     await ctx.reply(
       mute ? withEmoji(E.mute, "Chat muted.") : withEmoji(E.unmute, "Chat unmuted."),
-      { reply_markup: menu },
     );
   }
 
@@ -396,7 +355,7 @@ export function registerCommands(
     }
     state.setMuteAll(true);
     await state.save();
-    await ctx.reply(withEmoji(E.mute, "All alerts muted."), { reply_markup: menu });
+    await ctx.reply(withEmoji(E.mute, "All alerts muted."));
   });
 
   bot.command("unmuteall", async (ctx) => {
@@ -405,6 +364,6 @@ export function registerCommands(
     }
     state.unmuteAll();
     await state.save();
-    await ctx.reply(withEmoji(E.unmute, "All alerts unmuted."), { reply_markup: menu });
+    await ctx.reply(withEmoji(E.unmute, "All alerts unmuted."));
   });
 }

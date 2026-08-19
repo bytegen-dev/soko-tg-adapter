@@ -47,8 +47,12 @@ export class StateStore {
   private state: BotState = { ...DEFAULT_STATE, lastNotifiedMessageId: {} };
   private readonly filePath: string;
 
-  constructor(dataDir = path.join(process.cwd(), ".data")) {
-    this.filePath = path.join(dataDir, "state.json");
+  constructor(dataDir?: string) {
+    const dir =
+      dataDir ??
+      process.env.STATE_DATA_DIR ??
+      path.join(process.cwd(), ".data");
+    this.filePath = path.join(dir, "state.json");
   }
 
   get snapshot(): BotState {
@@ -71,6 +75,13 @@ export class StateStore {
         quietHoursEnd: parsed.quietHoursEnd ?? DEFAULT_QUIET_END,
         quietHoursTimezone: parsed.quietHoursTimezone ?? DEFAULT_QUIET_TIMEZONE,
       };
+      if (
+        this.state.quietHoursStart === "09:00" &&
+        this.state.quietHoursEnd === "18:00"
+      ) {
+        this.state.quietHoursStart = DEFAULT_QUIET_START;
+        this.state.quietHoursEnd = DEFAULT_QUIET_END;
+      }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
         throw error;

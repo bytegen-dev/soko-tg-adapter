@@ -23,6 +23,9 @@ const envSchema = z.object({
     .url()
     .default("https://app.sokosumi.com"),
   POLL_INTERVAL_MS: z.coerce.number().int().min(2000).max(60000).default(3000),
+  /** Directory for state.json (mount a Railway volume here in production). */
+  STATE_DATA_DIR: z.string().optional(),
+  PORT: z.coerce.number().int().min(1).max(65535).optional(),
 });
 
 export type Config = z.infer<typeof envSchema>;
@@ -34,9 +37,9 @@ export function loadConfig(): Config {
     if (error instanceof z.ZodError) {
       console.error(
         "[config] Missing or invalid environment variables.\n" +
-          "  1. cp .env.example .env\n" +
-          "  2. Fill in TELEGRAM_BOT_TOKEN, SOKOSUMI_API_KEY, SOKOSUMI_ORG_SLUG\n" +
-          "  3. pnpm dev → message /start in Telegram",
+          "  Required: TELEGRAM_BOT_TOKEN, SOKOSUMI_API_KEY, SOKOSUMI_ORG_SLUG\n" +
+          "  Local: cp .env.example .env then pnpm dev\n" +
+          "  Railway: set variables in the service dashboard",
       );
     }
     throw error;

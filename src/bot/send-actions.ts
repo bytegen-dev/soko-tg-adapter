@@ -1,5 +1,4 @@
-import { InlineKeyboard, type Keyboard } from "grammy";
-import type { Context } from "grammy";
+import { InlineKeyboard, type Context } from "grammy";
 
 import type { Config } from "../config.js";
 import {
@@ -67,14 +66,11 @@ export async function sendComposedMessage(
   title: string,
   roomIndex: number | null,
   content: string,
-  menu: Keyboard,
 ): Promise<void> {
   await deliverRoomMessage(client, state, roomId, content);
   clearComposeSession(String(ctx.chat!.id));
 
-  await ctx.reply(withEmoji(E.sent, `Sent to ${title}.`), {
-    reply_markup: menu,
-  });
+  await ctx.reply(withEmoji(E.sent, `Sent to ${title}.`));
 
   try {
     await sendReadView(ctx, config, client, state, roomId, roomIndex);
@@ -83,14 +79,11 @@ export async function sendComposedMessage(
   }
 }
 
-export async function cancelCompose(
-  ctx: Context,
-  menu: Keyboard,
-): Promise<boolean> {
+export async function cancelCompose(ctx: Context): Promise<boolean> {
   const chatId = ctx.chat?.id;
   if (!chatId || !clearComposeSession(String(chatId))) {
     return false;
   }
-  await ctx.reply(withEmoji(E.back, "Reply cancelled."), { reply_markup: menu });
+  await ctx.reply(withEmoji(E.back, "Reply cancelled."));
   return true;
 }

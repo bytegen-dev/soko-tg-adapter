@@ -34,7 +34,13 @@ import {
   timezoneOptionById,
 } from "./quiet-hours.js";
 import { buildRoomsText, roomsKeyboard, sortRoomsForDisplay, ROOMS_PAGE_SIZE } from "./rooms-view.js";
-import { HELP_TEXT } from "./text.js";
+import {
+  editMessageToHelp,
+  editMessageToRooms,
+  editMessageToSettings,
+  editMessageToStart,
+  editMessageToStatus,
+} from "./menu-actions.js";
 import { E, withEmoji } from "./emoji.js";
 import type { Config } from "../config.js";
 import { SokosumiClient, type ChatRoom } from "../sokosumi/client.js";
@@ -176,6 +182,43 @@ export function registerCallbacks(
     const data = ctx.callbackQuery.data;
 
     try {
+      if (data.startsWith("menu:")) {
+        const message = ctx.callbackQuery.message;
+        if (!message) {
+          await safeAnswerCallback(ctx);
+          return;
+        }
+        const chatId = message.chat.id;
+        const messageId = message.message_id;
+        await safeAnswerCallback(ctx);
+
+        switch (data) {
+          case "menu:home":
+            await editMessageToStart(bot, chatId, messageId);
+            break;
+          case "menu:chats":
+            await editMessageToRooms(bot, client, state, chatId, messageId);
+            break;
+          case "menu:settings":
+            await editMessageToSettings(
+              bot,
+              config,
+              client,
+              state,
+              chatId,
+              messageId,
+            );
+            break;
+          case "menu:help":
+            await editMessageToHelp(bot, chatId, messageId);
+            break;
+          case "menu:status":
+            await editMessageToStatus(bot, config, state, chatId, messageId);
+            break;
+        }
+        return;
+      }
+
       if (data.startsWith("read:open:")) {
         const index = Number.parseInt(data.slice("read:open:".length), 10);
         const rooms = await client.listRooms();
@@ -310,7 +353,7 @@ export function registerCallbacks(
         }
         state.setQuietHoursStart(time);
         await state.save();
-        await safeAnswerCallback(ctx, { text: "Start time updated" });
+        await safeAnswerCallback(ctx, { text: "Quiet from updated" });
         if (ctx.callbackQuery.message) {
           await refreshQuietHours(
             bot,
@@ -331,7 +374,7 @@ export function registerCallbacks(
         }
         state.setQuietHoursEnd(time);
         await state.save();
-        await safeAnswerCallback(ctx, { text: "End time updated" });
+        await safeAnswerCallback(ctx, { text: "Quiet until updated" });
         if (ctx.callbackQuery.message) {
           await refreshQuietHours(
             bot,
@@ -599,16 +642,10 @@ export function registerCallbacks(
           return;
         }
         await ctx.answerCallbackQuery();
-        await bot.api.editMessageText(
+        await editMessageToHelp(
+          bot,
           ctx.callbackQuery.message.chat.id,
           ctx.callbackQuery.message.message_id,
-          HELP_TEXT,
-          {
-            reply_markup: new InlineKeyboard().text(
-              "Back to settings",
-              "settings:refresh",
-            ),
-          },
         );
         return;
       }

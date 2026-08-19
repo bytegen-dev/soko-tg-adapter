@@ -1,10 +1,18 @@
 import { E, withEmoji } from "./emoji.js";
+import { describeQuietHours } from "./quiet-hours.js";
+import type { Config } from "../config.js";
+import type { StateStore } from "../state.js";
 
 export function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
+}
+
+/** Plain text safe for Telegram HTML (avoids hashtag and broken mention autolink). */
+export function escapeTelegramPlain(value: string): string {
+  return escapeHtml(value).replace(/#/g, "&#35;");
 }
 
 export const HELP_TEXT = [
@@ -32,11 +40,27 @@ export const HELP_TEXT = [
   "/help - this message",
 ].join("\n");
 
+export function buildStatusText(config: Config, state: StateStore): string {
+  const muted = state.snapshot.muteAll
+    ? `${E.muted} all muted`
+    : state.snapshot.mutedRoomIds.length > 0
+      ? `${E.muted} ${state.snapshot.mutedRoomIds.length} chat(s) muted`
+      : `${E.unmute} alerts on`;
+  return [
+    `${E.status} Status`,
+    "",
+    `Organization: ${config.SOKOSUMI_ORG_SLUG}`,
+    `Poll interval: ${config.POLL_INTERVAL_MS}ms`,
+    `Alerts: ${muted}`,
+    `Quiet hours: ${describeQuietHours(state.snapshot)}`,
+  ].join("\n");
+}
+
 export const START_TEXT = [
-  `${E.ok} Connected to Sokosumi.`,
+  `${E.unread} Sokosumi alerts`,
   "",
-  "Direct messages and channel posts show up here within a few seconds.",
-  "Use the buttons below to get started.",
+  "New DMs and channel posts show up here within a few seconds.",
+  "Use the buttons on this message to browse chats or change settings.",
 ].join("\n");
 
 export const LOADING_CHATS = withEmoji(E.loading, "Loading chats...");

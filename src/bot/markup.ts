@@ -1,9 +1,20 @@
-import { escapeHtml } from "./text.js";
+import { escapeHtml, escapeTelegramPlain } from "./text.js";
 
 const TELEGRAM_TAG_NAMES = new Set(["b", "i", "u", "s", "code", "pre", "a"]);
 
+/** Sokosumi stores mentions as @id:slug — show @slug so Telegram does not mangle the id. */
+const SOKOSUMI_MENTION_REGEX = /@([^\s:@]+):([^\s]+)/g;
+
+export function normalizeSokosumiMentions(text: string): string {
+  return text.replace(SOKOSUMI_MENTION_REGEX, "@$2");
+}
+
 function escapeHref(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/"/g, "&quot;");
+}
+
+function plainText(value: string): string {
+  return escapeTelegramPlain(value);
 }
 
 /** Inline markdown: bold, italic, code, links. */
@@ -14,7 +25,7 @@ function formatInline(text: string): string {
   while (remaining.length > 0) {
     const linkMatch = remaining.match(/^\[([^\]]*)\]\(([^)]*)\)/);
     if (linkMatch) {
-      const label = escapeHtml(linkMatch[1] ?? "");
+      const label = plainText(linkMatch[1] ?? "");
       const href = escapeHref(linkMatch[2] ?? "");
       output += `<a href="${href}">${label}</a>`;
       remaining = remaining.slice(linkMatch[0].length);
@@ -23,44 +34,44 @@ function formatInline(text: string): string {
 
     const boldMatch = remaining.match(/^\*\*(.+?)\*\*/s);
     if (boldMatch) {
-      output += `<b>${escapeHtml(boldMatch[1] ?? "")}</b>`;
+      output += `<b>${plainText(boldMatch[1] ?? "")}</b>`;
       remaining = remaining.slice(boldMatch[0].length);
       continue;
     }
 
     const codeMatch = remaining.match(/^`([^`\n]+)`/);
     if (codeMatch) {
-      output += `<code>${escapeHtml(codeMatch[1] ?? "")}</code>`;
+      output += `<code>${plainText(codeMatch[1] ?? "")}</code>`;
       remaining = remaining.slice(codeMatch[0].length);
       continue;
     }
 
     const italicMatch = remaining.match(/^\*(?!\*)(.+?)\*(?!\*)/s);
     if (italicMatch) {
-      output += `<i>${escapeHtml(italicMatch[1] ?? "")}</i>`;
+      output += `<i>${plainText(italicMatch[1] ?? "")}</i>`;
       remaining = remaining.slice(italicMatch[0].length);
       continue;
     }
 
     const underscoreItalic = remaining.match(/^_(.+?)_/s);
     if (underscoreItalic) {
-      output += `<i>${escapeHtml(underscoreItalic[1] ?? "")}</i>`;
+      output += `<i>${plainText(underscoreItalic[1] ?? "")}</i>`;
       remaining = remaining.slice(underscoreItalic[0].length);
       continue;
     }
 
     const nextSpecial = remaining.search(/[\[*_`]/);
     if (nextSpecial === -1) {
-      output += escapeHtml(remaining);
+      output += plainText(remaining);
       break;
     }
     if (nextSpecial === 0) {
-      output += escapeHtml(remaining[0] ?? "");
+      output += plainText(remaining[0] ?? "");
       remaining = remaining.slice(1);
       continue;
     }
 
-    output += escapeHtml(remaining.slice(0, nextSpecial));
+    output += plainText(remaining.slice(0, nextSpecial));
     remaining = remaining.slice(nextSpecial);
   }
 
@@ -112,7 +123,8 @@ export function markdownToTelegramHtml(source: string): string {
     return "";
   }
 
-  let text = source.replace(/\r\n/g, "\n");
+  let text = normalizeSokosumiMentions(source);
+  text = text.replace(/\r\n/g, "\n");
   text = text.replace(/:\s*###\s+/g, ":\n### ");
   text = text.replace(/(?<!\n)###\s+/g, "\n### ");
 
@@ -170,7 +182,8 @@ export function formatMessageHtml(content: string, maxLength?: number): string {
     }
     return truncateHtml(html, maxLength);
   } catch {
-    const plain = escapeHtml(content.replace(/\s+/g, " ").trim());
+    let plain = normalizeSokosumiMentions(content.replace(/\s+/g, " ").trim());
+    plain = plainText(plain);
     if (maxLength === undefined || plain.length <= maxLength) {
       return plain;
     }

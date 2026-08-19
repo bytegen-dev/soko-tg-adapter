@@ -8,6 +8,7 @@ import {
   ROOMS_PAGE_SIZE,
 } from "./rooms-view.js";
 import { describeQuietHours } from "./quiet-hours.js";
+import { homeMenuRow } from "./menu-keyboard.js";
 
 export function buildSettingsText(
   state: StateStore,
@@ -52,7 +53,7 @@ export function settingsKeyboard(state: StateStore): InlineKeyboard {
   keyboard.row().text(withEmoji(E.mute, "Quiet hours"), "settings:quiet");
   keyboard.row().text(withEmoji(E.chats, "Manage chats"), "settings:chats:0");
   keyboard.row().text(withEmoji(E.help, "Help"), "settings:help");
-  return keyboard;
+  return homeMenuRow(keyboard);
 }
 
 const MANAGE_PAGE_SIZE = ROOMS_PAGE_SIZE;

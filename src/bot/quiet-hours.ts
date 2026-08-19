@@ -1,5 +1,5 @@
-export const DEFAULT_QUIET_START = "09:00";
-export const DEFAULT_QUIET_END = "18:00";
+export const DEFAULT_QUIET_START = "18:00";
+export const DEFAULT_QUIET_END = "09:00";
 export const DEFAULT_QUIET_TIMEZONE = "UTC";
 
 export const QUIET_TIME_PRESETS = [

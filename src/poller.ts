@@ -3,7 +3,7 @@ import { InlineKeyboard } from "grammy";
 
 import type { Config } from "./config.js";
 import { getAllowedChatIds } from "./bot/access.js";
-import { escapeHtml } from "./bot/text.js";
+import { escapeTelegramPlain } from "./bot/text.js";
 import { formatMessageHtml } from "./bot/markup.js";
 import { E, roomEmoji, withEmoji } from "./bot/emoji.js";
 import {
@@ -40,8 +40,8 @@ function formatAlert(room: ChatRoom, message: ChatRoomMessage): string {
   const icon = roomEmoji(room);
   return [
     `<b>${E.unread} New message</b>`,
-    `${icon} <b>${escapeHtml(title)}</b>`,
-    `<b>${escapeHtml(sender)}:</b> ${formatMessageHtml(message.content, 350)}`,
+    `${icon} <b>${escapeTelegramPlain(title)}</b>`,
+    `<b>${escapeTelegramPlain(sender)}:</b> ${formatMessageHtml(message.content, 350)}`,
   ].join("\n");
 }
 
