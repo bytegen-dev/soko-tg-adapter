@@ -23,6 +23,7 @@ export interface ChatRoom {
   directKey: string | null;
   unreadCount: number;
   unreadMentionCount: number;
+  markedUnread?: boolean;
   mutedAt: string | null;
   userMembers: ChatRoomUserParticipant[];
   coworkerMembers: ChatRoomCoworkerParticipant[];
@@ -38,10 +39,13 @@ export interface ChatRoomMessageSender {
 export interface ChatRoomMessage {
   id: string;
   roomId: string;
+  parentMessageId?: string | null;
   content: string;
   createdAt: string;
   deletedAt: string | null;
   sender: ChatRoomMessageSender;
+  threadReplyCount?: number;
+  threadLastReplyAt?: string | null;
 }
 
 export interface PaginationMeta {

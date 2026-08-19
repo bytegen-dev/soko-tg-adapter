@@ -93,13 +93,20 @@ export class SokosumiClient {
 
   async listRoomMessages(
     roomId: string,
-    options?: { limit?: number; cursor?: string },
+    options?: {
+      limit?: number;
+      cursor?: string;
+      parentMessageId?: string;
+    },
   ): Promise<{ messages: ChatRoomMessage[]; nextCursor: string | null }> {
     const query = new URLSearchParams({
       limit: String(options?.limit ?? 30),
     });
     if (options?.cursor) {
       query.set("cursor", options.cursor);
+    }
+    if (options?.parentMessageId) {
+      query.set("parentMessageId", options.parentMessageId);
     }
 
     const response = await this.request<ListResponse<ChatRoomMessage[]>>(
@@ -110,6 +117,65 @@ export class SokosumiClient {
       messages: response.data,
       nextCursor: response.meta.pagination?.nextCursor ?? null,
     };
+  }
+
+  /**
+   * Top-level timeline plus recent thread replies. Sokosumi counts thread
+   * messages in unreadCount, but GET /messages defaults to parentMessageId=null.
+   */
+  async listRoomMessagesWithThreads(
+    roomId: string,
+    options?: { limit?: number; maxThreadParents?: number },
+  ): Promise<{ messages: ChatRoomMessage[]; nextCursor: string | null }> {
+    const limit = options?.limit ?? 30;
+    const maxThreadParents = options?.maxThreadParents ?? 6;
+
+    const { messages: topLevel, nextCursor } = await this.listRoomMessages(
+      roomId,
+      { limit },
+    );
+
+    const threadParents = [...topLevel]
+      .filter((message) => (message.threadReplyCount ?? 0) > 0)
+      .sort((left, right) => {
+        const leftTime = Date.parse(
+          left.threadLastReplyAt ?? left.createdAt,
+        );
+        const rightTime = Date.parse(
+          right.threadLastReplyAt ?? right.createdAt,
+        );
+        if (leftTime !== rightTime) {
+          return rightTime - leftTime;
+        }
+        return right.id.localeCompare(left.id);
+      })
+      .slice(0, maxThreadParents);
+
+    if (threadParents.length === 0) {
+      return { messages: topLevel, nextCursor };
+    }
+
+    const threadPages = await Promise.all(
+      threadParents.map((parent) =>
+        this.listRoomMessages(roomId, {
+          parentMessageId: parent.id,
+          limit: Math.min(Math.max(parent.threadReplyCount ?? 1, 1) + 2, 30),
+        }),
+      ),
+    );
+
+    const byId = new Map<string, ChatRoomMessage>();
+    for (const message of topLevel) {
+      byId.set(message.id, message);
+    }
+    for (const page of threadPages) {
+      for (const message of page.messages) {
+        byId.set(message.id, message);
+      }
+    }
+
+    const messages = [...byId.values()].sort(compareChatRoomMessages);
+    return { messages, nextCursor };
   }
 
   async sendMessage(roomId: string, content: string): Promise<ChatRoomMessage> {
@@ -168,6 +234,14 @@ export function isNotifiableDirectRoom(room: ChatRoom): boolean {
   return isHumanDirectRoom(room) || isCoworkerDirectRoom(room);
 }
 
+export function roomHasUnread(room: ChatRoom): boolean {
+  return (
+    room.unreadCount > 0 ||
+    room.unreadMentionCount > 0 ||
+    room.markedUnread === true
+  );
+}
+
 export function roomDisplayName(room: ChatRoom, selfUserId?: string): string {
   if (isChannelRoom(room)) {
     const name = room.name || room.slug;
@@ -210,4 +284,16 @@ export function truncate(text: string, max = 350): string {
     return trimmed;
   }
   return `${trimmed.slice(0, max - 1)}…`;
+}
+
+export function compareChatRoomMessages(
+  a: ChatRoomMessage,
+  b: ChatRoomMessage,
+): number {
+  const aTime = Date.parse(a.createdAt);
+  const bTime = Date.parse(b.createdAt);
+  if (aTime !== bTime) {
+    return aTime - bTime;
+  }
+  return a.id.localeCompare(b.id);
 }

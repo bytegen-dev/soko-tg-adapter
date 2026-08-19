@@ -2,7 +2,9 @@ import type { Context } from "grammy";
 
 import type { Config } from "../config.js";
 import {
+  compareChatRoomMessages,
   roomDisplayName,
+  roomHasUnread,
   SokosumiClient,
   type ChatRoom,
   type ChatRoomMessage,
@@ -44,7 +46,7 @@ export async function sendReadView(
   state: StateStore,
   roomId: string,
   roomIndex: number | null,
-  options?: { editMessageId?: number },
+  options?: { editMessageId?: number; hasUnread?: boolean },
 ): Promise<void> {
   const rooms = await client.listRooms();
   const room = rooms.find((entry) => entry.id === roomId);
@@ -52,16 +54,34 @@ export async function sendReadView(
     ? roomDisplayName(room, state.snapshot.selfUserId)
     : "Direct message";
 
+  const editMessageId =
+    options?.editMessageId ?? ctx.callbackQuery?.message?.message_id;
+
   const { messages, nextCursor } = await loadReadPage(client, roomId);
   if (messages.length === 0) {
     const text = `<b>${escapeHtml(title)}</b>\n\nNo messages yet.`;
-    if (options?.editMessageId) {
-      await ctx.editMessageText(text, { parse_mode: "HTML" });
+    const emptyPage: ReadViewPage = {
+      roomId,
+      roomIndex,
+      title,
+      messages: [],
+      nextCursor: null,
+      hasUnread: options?.hasUnread ?? (room ? roomHasUnread(room) : false),
+    };
+    const markup = readKeyboard(config, state, emptyPage);
+    if (editMessageId) {
+      await ctx.editMessageText(text, {
+        parse_mode: "HTML",
+        reply_markup: markup,
+      });
     } else {
-      await ctx.reply(text, { parse_mode: "HTML" });
+      await ctx.reply(text, { parse_mode: "HTML", reply_markup: markup });
     }
     return;
   }
+
+  const hasUnread =
+    options?.hasUnread ?? (room ? roomHasUnread(room) : false);
 
   const page: ReadViewPage = {
     roomId,
@@ -69,6 +89,7 @@ export async function sendReadView(
     title,
     messages,
     nextCursor,
+    hasUnread,
   };
 
   const sessionId = createReadSession({
@@ -77,13 +98,14 @@ export async function sendReadView(
     title,
     messages,
     nextCursor,
+    hasUnread,
   });
   page.sessionId = sessionId;
 
   const text = buildReadText(page);
   const markup = readKeyboard(config, state, page);
 
-  if (options?.editMessageId) {
+  if (editMessageId) {
     await ctx.editMessageText(text, {
       parse_mode: "HTML",
       reply_markup: markup,
@@ -131,6 +153,7 @@ export async function appendOlderReadPage(
     messages: session.messages,
     nextCursor: session.nextCursor,
     sessionId,
+    hasUnread: session.hasUnread,
   };
 
   let text = buildReadText(page);
@@ -157,18 +180,13 @@ export function findRoomByIndex(
   return rooms[index - 1];
 }
 
-function latestMessageId(messages: ChatRoomMessage[]): string | undefined {
+export function latestMessageId(
+  messages: ChatRoomMessage[],
+): string | undefined {
   if (messages.length === 0) {
     return undefined;
   }
-  const sorted = [...messages].sort((a, b) => {
-    const aTime = Date.parse(a.createdAt);
-    const bTime = Date.parse(b.createdAt);
-    if (aTime !== bTime) {
-      return aTime - bTime;
-    }
-    return a.id.localeCompare(b.id);
-  });
+  const sorted = [...messages].sort(compareChatRoomMessages);
   return sorted.at(-1)?.id;
 }
 
@@ -183,7 +201,9 @@ export async function markRoomAsRead(
   if (knownLatestMessageId) {
     state.setLastNotifiedMessageId(roomId, knownLatestMessageId);
   } else {
-    const { messages } = await client.listRoomMessages(roomId, { limit: 20 });
+    const { messages } = await client.listRoomMessagesWithThreads(roomId, {
+      limit: 20,
+    });
     const latestId = latestMessageId(messages);
     if (latestId) {
       state.setLastNotifiedMessageId(roomId, latestId);

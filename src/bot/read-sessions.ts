@@ -6,6 +6,7 @@ export interface ReadSession {
   title: string;
   messages: ChatRoomMessage[];
   nextCursor: string | null;
+  hasUnread: boolean;
 }
 
 const sessions = new Map<string, ReadSession>();

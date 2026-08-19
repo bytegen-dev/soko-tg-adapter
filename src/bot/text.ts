@@ -66,10 +66,7 @@ export function buildStartText(user?: SokosumiUserSummary): string {
   if (user) {
     lines.push(`Connected as ${user.name} (${user.email})`, "");
   }
-  lines.push(
-    "New DMs and channel posts show up here within a few seconds.",
-    "Use the buttons on this message to browse chats or change settings.",
-  );
+  lines.push("New DMs and channel posts show up here within a few seconds.");
   return lines.join("\n");
 }
 

@@ -6,12 +6,13 @@ import { safeAnswerCallback } from "./callback-utils.js";
 import {
   appendOlderReadPage,
   findRoomByIndex,
+  latestMessageId,
   markRoomAsRead,
   roomIndexForId,
   sendReadView,
 } from "./read-actions.js";
 import { startCompose } from "./send-actions.js";
-import { readKeyboard, type ReadViewPage } from "./read-view.js";
+import { alertKeyboard, readKeyboard, type ReadViewPage } from "./read-view.js";
 import { getReadSession } from "./read-sessions.js";
 import { clearComposeSession } from "./compose-sessions.js";
 import {
@@ -116,6 +117,7 @@ async function refreshReadMuteButton(
     messages: session.messages,
     nextCursor: session.nextCursor,
     sessionId,
+    hasUnread: session.hasUnread,
   };
 
   await ctx.editMessageReplyMarkup({
@@ -251,7 +253,7 @@ export function registerCallbacks(
                   button.callback_data.slice("read:old:".length),
                 );
                 if (session?.roomId === roomId) {
-                  knownLatestMessageId = session.messages.at(-1)?.id;
+                  knownLatestMessageId = latestMessageId(session.messages);
                 }
               }
             }
@@ -283,6 +285,11 @@ export function registerCallbacks(
             const index = roomIndexForId(state, roomId);
             await sendReadView(ctx, config, client, state, roomId, index, {
               editMessageId: message.message_id,
+              hasUnread: false,
+            });
+          } else if (hasViewButton && message) {
+            await ctx.editMessageReplyMarkup({
+              reply_markup: alertKeyboard(config, state, roomId, false),
             });
           }
         } catch (error) {

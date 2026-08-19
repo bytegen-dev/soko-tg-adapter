@@ -20,6 +20,7 @@ export interface ReadViewPage {
   messages: ChatRoomMessage[];
   nextCursor: string | null;
   sessionId?: string;
+  hasUnread: boolean;
 }
 
 export function formatReadBody(messages: ChatRoomMessage[]): string {
@@ -47,19 +48,42 @@ export function buildReadText(page: ReadViewPage): string {
   return `${header}\n\n${formatReadBody(page.messages)}${footer}`;
 }
 
+export function alertKeyboard(
+  config: Config,
+  state: StateStore,
+  roomId: string,
+  hasUnread: boolean,
+): InlineKeyboard {
+  const keyboard = new InlineKeyboard();
+  keyboard
+    .text(withEmoji(E.view, "View"), `read:oid:${roomId}`)
+    .text(withEmoji(E.reply, "Reply"), `compose:oid:${roomId}`);
+  if (hasUnread) {
+    keyboard
+      .row()
+      .text(withEmoji(E.readDone, "Mark read"), `read:mark:oid:${roomId}`);
+  }
+  keyboard.row().url(withEmoji(E.open, "Open"), buildChatRoomUrl(config, roomId));
+  if (!state.isRoomMuted(roomId)) {
+    keyboard.row().text(withEmoji(E.mute, "Mute"), `mute:oid:${roomId}`);
+  }
+  return keyboard;
+}
+
 export function readKeyboard(
   config: Config,
   state: StateStore,
   page: ReadViewPage,
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
+  keyboard.row().text(withEmoji(E.back, "Chats"), "menu:chats");
   if (page.nextCursor && page.sessionId) {
     keyboard.text(withEmoji(E.older, "Older"), `read:old:${page.sessionId}`);
   }
-  keyboard
-    .row()
-    .text(withEmoji(E.reply, "Reply"), `compose:oid:${page.roomId}`)
-    .text(withEmoji(E.readDone, "Mark read"), `read:mark:oid:${page.roomId}`);
+  keyboard.row().text(withEmoji(E.reply, "Reply"), `compose:oid:${page.roomId}`);
+  if (page.hasUnread) {
+    keyboard.text(withEmoji(E.readDone, "Mark read"), `read:mark:oid:${page.roomId}`);
+  }
   keyboard.row().url(withEmoji(E.open, "Open"), buildChatRoomUrl(config, page.roomId));
 
   const muted = state.isRoomMuted(page.roomId);

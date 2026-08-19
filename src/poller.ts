@@ -1,29 +1,22 @@
 import type { Bot } from "grammy";
-import { InlineKeyboard } from "grammy";
+import type { InlineKeyboard } from "grammy";
 
 import type { Config } from "./config.js";
 import { getAllowedChatIds } from "./bot/access.js";
 import { escapeTelegramPlain } from "./bot/text.js";
 import { formatMessageHtml } from "./bot/markup.js";
-import { E, roomEmoji, withEmoji } from "./bot/emoji.js";
+import { alertKeyboard } from "./bot/read-view.js";
+import { E, roomEmoji } from "./bot/emoji.js";
 import {
+  compareChatRoomMessages,
   messageSenderName,
   roomDisplayName,
+  roomHasUnread,
   SokosumiClient,
   type ChatRoom,
   type ChatRoomMessage,
 } from "./sokosumi/client.js";
-import { buildChatRoomUrl } from "./sokosumi/links.js";
 import type { StateStore } from "./state.js";
-
-function compareMessages(a: ChatRoomMessage, b: ChatRoomMessage): number {
-  const aTime = Date.parse(a.createdAt);
-  const bTime = Date.parse(b.createdAt);
-  if (aTime !== bTime) {
-    return aTime - bTime;
-  }
-  return a.id.localeCompare(b.id);
-}
 
 function isFromSelf(message: ChatRoomMessage, selfUserId?: string): boolean {
   if (!selfUserId) {
@@ -38,9 +31,12 @@ function formatAlert(room: ChatRoom, message: ChatRoomMessage): string {
   const title = roomDisplayName(room, undefined);
   const sender = messageSenderName(message);
   const icon = roomEmoji(room);
+  const threadLine = message.parentMessageId
+    ? `\n${E.thread} <i>Thread reply</i>`
+    : "";
   return [
     `<b>${E.unread} New message</b>`,
-    `${icon} <b>${escapeTelegramPlain(title)}</b>`,
+    `${icon} <b>${escapeTelegramPlain(title)}</b>${threadLine}`,
     `<b>${escapeTelegramPlain(sender)}:</b> ${formatMessageHtml(message.content, 350)}`,
   ].join("\n");
 }
@@ -93,7 +89,10 @@ export class MessagePoller {
     this.state.setRoomOrder(rooms.map((room) => room.id));
 
     const roomsToCheck = rooms.filter(
-      (room) => room.unreadCount > 0 || !this.bootstrapped,
+      (room) =>
+        room.unreadCount > 0 ||
+        room.unreadMentionCount > 0 ||
+        !this.bootstrapped,
     );
 
     for (const room of roomsToCheck) {
@@ -111,12 +110,15 @@ export class MessagePoller {
 
   private async syncRoom(room: ChatRoom): Promise<void> {
     const limit = Math.min(Math.max(room.unreadCount, 1) + 5, 50);
-    const { messages } = await this.client.listRoomMessages(room.id, { limit });
+    const { messages } = await this.client.listRoomMessagesWithThreads(
+      room.id,
+      { limit },
+    );
     if (messages.length === 0) {
       return;
     }
 
-    const sorted = [...messages].sort(compareMessages);
+    const sorted = [...messages].sort(compareChatRoomMessages);
     const latest = sorted.at(-1);
     if (!latest) {
       return;
@@ -170,19 +172,13 @@ export class MessagePoller {
     }
   }
 
-  private roomKeyboard(roomId: string): InlineKeyboard {
-    const keyboard = new InlineKeyboard();
-    keyboard
-      .text(withEmoji(E.view, "View"), `read:oid:${roomId}`)
-      .text(withEmoji(E.reply, "Reply"), `compose:oid:${roomId}`);
-    keyboard
-      .row()
-      .text(withEmoji(E.readDone, "Mark read"), `read:mark:oid:${roomId}`);
-    keyboard.row().url(withEmoji(E.open, "Open"), buildChatRoomUrl(this.config, roomId));
-    if (!this.state.isRoomMuted(roomId)) {
-      keyboard.row().text(withEmoji(E.mute, "Mute"), `mute:oid:${roomId}`);
-    }
-    return keyboard;
+  private roomKeyboard(room: ChatRoom): InlineKeyboard {
+    return alertKeyboard(
+      this.config,
+      this.state,
+      room.id,
+      roomHasUnread(room),
+    );
   }
 
   private async notifyAll(room: ChatRoom, message: ChatRoomMessage): Promise<void> {
@@ -192,7 +188,7 @@ export class MessagePoller {
     }
 
     const text = formatAlert(room, message);
-    const keyboard = this.roomKeyboard(room.id);
+    const keyboard = this.roomKeyboard(room);
     await Promise.all(
       chatIds.map((chatId) =>
         this.bot.api.sendMessage(chatId, text, {
