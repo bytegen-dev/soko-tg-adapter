@@ -1,4 +1,4 @@
-# soko-tg-bot
+# soko-tg-adapter
 
 Telegram alerts for **Sokosumi org human DMs** via Core API + user API key.
 

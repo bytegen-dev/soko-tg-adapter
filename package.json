@@ -1,5 +1,5 @@
 {
-  "name": "soko-tg-bot",
+  "name": "soko-tg-adapter",
   "version": "0.1.0",
   "private": true,
   "type": "module",
