@@ -59,7 +59,8 @@ export function readKeyboard(
   keyboard
     .row()
     .text(withEmoji(E.reply, "Reply"), `compose:oid:${page.roomId}`)
-    .url(withEmoji(E.open, "Open"), buildChatRoomUrl(config, page.roomId));
+    .text(withEmoji(E.readDone, "Mark read"), `read:mark:oid:${page.roomId}`);
+  keyboard.row().url(withEmoji(E.open, "Open"), buildChatRoomUrl(config, page.roomId));
 
   const muted = state.isRoomMuted(page.roomId);
   if (page.roomIndex !== null) {

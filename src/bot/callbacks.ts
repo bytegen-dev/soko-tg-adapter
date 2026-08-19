@@ -6,6 +6,7 @@ import { safeAnswerCallback } from "./callback-utils.js";
 import {
   appendOlderReadPage,
   findRoomByIndex,
+  markRoomAsRead,
   roomIndexForId,
   sendReadView,
 } from "./read-actions.js";
@@ -231,6 +232,63 @@ export function registerCallbacks(
         }
         await ctx.answerCallbackQuery();
         await sendReadView(ctx, config, client, state, room.id, index);
+        return;
+      }
+
+      if (data.startsWith("read:mark:oid:")) {
+        const roomId = data.slice("read:mark:oid:".length);
+        const message = ctx.callbackQuery.message;
+        let knownLatestMessageId: string | undefined;
+
+        if (message && "reply_markup" in message && message.reply_markup) {
+          for (const row of message.reply_markup.inline_keyboard) {
+            for (const button of row) {
+              if (
+                "callback_data" in button &&
+                button.callback_data?.startsWith("read:old:")
+              ) {
+                const session = getReadSession(
+                  button.callback_data.slice("read:old:".length),
+                );
+                if (session?.roomId === roomId) {
+                  knownLatestMessageId = session.messages.at(-1)?.id;
+                }
+              }
+            }
+          }
+        }
+
+        try {
+          await markRoomAsRead(client, state, roomId, knownLatestMessageId);
+          await safeAnswerCallback(ctx, { text: "Marked as read" });
+
+          const keyboard = message?.reply_markup?.inline_keyboard ?? [];
+          let hasViewButton = false;
+          let hasMarkReadButton = false;
+          for (const row of keyboard) {
+            for (const button of row) {
+              if (!("callback_data" in button)) {
+                continue;
+              }
+              if (button.callback_data?.startsWith("read:oid:")) {
+                hasViewButton = true;
+              }
+              if (button.callback_data?.startsWith("read:mark:oid:")) {
+                hasMarkReadButton = true;
+              }
+            }
+          }
+
+          if (hasMarkReadButton && !hasViewButton && message) {
+            const index = roomIndexForId(state, roomId);
+            await sendReadView(ctx, config, client, state, roomId, index, {
+              editMessageId: message.message_id,
+            });
+          }
+        } catch (error) {
+          console.error("[bot] mark read failed:", error);
+          await safeAnswerCallback(ctx, { text: "Could not mark as read" });
+        }
         return;
       }
 

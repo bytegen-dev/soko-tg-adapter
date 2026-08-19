@@ -28,6 +28,7 @@ export const E = {
   ok: "✅",
   loading: "⏳",
   sent: "✓",
+  readDone: "✔️",
   warn: "⚠️",
 } as const;
 

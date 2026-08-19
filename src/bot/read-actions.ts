@@ -156,3 +156,39 @@ export function findRoomByIndex(
 ): ChatRoom | undefined {
   return rooms[index - 1];
 }
+
+function latestMessageId(messages: ChatRoomMessage[]): string | undefined {
+  if (messages.length === 0) {
+    return undefined;
+  }
+  const sorted = [...messages].sort((a, b) => {
+    const aTime = Date.parse(a.createdAt);
+    const bTime = Date.parse(b.createdAt);
+    if (aTime !== bTime) {
+      return aTime - bTime;
+    }
+    return a.id.localeCompare(b.id);
+  });
+  return sorted.at(-1)?.id;
+}
+
+export async function markRoomAsRead(
+  client: SokosumiClient,
+  state: StateStore,
+  roomId: string,
+  knownLatestMessageId?: string,
+): Promise<void> {
+  await client.markRoomRead(roomId);
+
+  if (knownLatestMessageId) {
+    state.setLastNotifiedMessageId(roomId, knownLatestMessageId);
+  } else {
+    const { messages } = await client.listRoomMessages(roomId, { limit: 20 });
+    const latestId = latestMessageId(messages);
+    if (latestId) {
+      state.setLastNotifiedMessageId(roomId, latestId);
+    }
+  }
+
+  await state.save();
+}

@@ -175,6 +175,9 @@ export class MessagePoller {
     keyboard
       .text(withEmoji(E.view, "View"), `read:oid:${roomId}`)
       .text(withEmoji(E.reply, "Reply"), `compose:oid:${roomId}`);
+    keyboard
+      .row()
+      .text(withEmoji(E.readDone, "Mark read"), `read:mark:oid:${roomId}`);
     keyboard.row().url(withEmoji(E.open, "Open"), buildChatRoomUrl(this.config, roomId));
     if (!this.state.isRoomMuted(roomId)) {
       keyboard.row().text(withEmoji(E.mute, "Mute"), `mute:oid:${roomId}`);
