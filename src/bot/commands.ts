@@ -107,7 +107,7 @@ export function registerCommands(
 
   bot.command("start", async (ctx) => {
     try {
-      if (!(await ensureAllowed(ctx, config, state))) {
+      if (!(await ensureAllowed(ctx, config))) {
         return;
       }
       await clearReplyKeyboard(ctx);
@@ -120,14 +120,14 @@ export function registerCommands(
   });
 
   bot.command("help", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
     await ctx.reply(HELP_TEXT, { reply_markup: mainMenuInline() });
   });
 
   bot.command("status", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
     await ctx.reply(buildStatusText(config, state), {
@@ -136,14 +136,14 @@ export function registerCommands(
   });
 
   bot.command("settings", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
     await replySettings(ctx, config, client, state);
   });
 
   bot.command("rooms", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
     await replyRooms(ctx, client, state);
@@ -152,7 +152,7 @@ export function registerCommands(
   bot.on("message:text").filter(
     (ctx) => matchMenuKey(ctx.message.text) !== null,
     async (ctx) => {
-      if (!(await ensureAllowed(ctx, config, state))) {
+      if (!(await ensureAllowed(ctx, config))) {
         return;
       }
 
@@ -196,7 +196,7 @@ export function registerCommands(
       return hasComposeSession(String(chatId));
     },
     async (ctx) => {
-      if (!(await ensureAllowed(ctx, config, state))) {
+      if (!(await ensureAllowed(ctx, config))) {
         return;
       }
 
@@ -235,7 +235,7 @@ export function registerCommands(
   );
 
   bot.command("read", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
 
@@ -263,7 +263,7 @@ export function registerCommands(
   });
 
   bot.command("send", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
 
@@ -303,7 +303,7 @@ export function registerCommands(
   });
 
   bot.command("cancel", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
     const cancelled = await cancelCompose(ctx);
@@ -337,21 +337,21 @@ export function registerCommands(
   }
 
   bot.command("mute", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
     await muteByToken(ctx, true);
   });
 
   bot.command("unmute", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
     await muteByToken(ctx, false);
   });
 
   bot.command("muteall", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
     state.setMuteAll(true);
@@ -360,7 +360,7 @@ export function registerCommands(
   });
 
   bot.command("unmuteall", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       return;
     }
     state.unmuteAll();

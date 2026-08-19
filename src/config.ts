@@ -4,14 +4,16 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_ALLOWED_CHAT_IDS: z
     .string()
-    .optional()
-    .default("")
+    .min(1)
     .transform((value) =>
       value
         .split(",")
         .map((id) => id.trim())
         .filter(Boolean),
-    ),
+    )
+    .refine((ids) => ids.length > 0, {
+      message: "TELEGRAM_ALLOWED_CHAT_IDS must include at least one chat ID",
+    }),
   SOKOSUMI_API_KEY: z.string().min(1),
   SOKOSUMI_ORG_SLUG: z.string().min(1),
   SOKOSUMI_CORE_BASE_URL: z
@@ -37,7 +39,8 @@ export function loadConfig(): Config {
     if (error instanceof z.ZodError) {
       console.error(
         "[config] Missing or invalid environment variables.\n" +
-          "  Required: TELEGRAM_BOT_TOKEN, SOKOSUMI_API_KEY, SOKOSUMI_ORG_SLUG\n" +
+          "  Required: TELEGRAM_BOT_TOKEN, TELEGRAM_ALLOWED_CHAT_IDS, SOKOSUMI_API_KEY, SOKOSUMI_ORG_SLUG\n" +
+          "  Chat ID: message your bot, then pnpm get-chat-id\n" +
           "  Local: cp .env.example .env then pnpm dev\n" +
           "  Railway: set variables in the service dashboard",
       );

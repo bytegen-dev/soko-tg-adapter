@@ -183,7 +183,7 @@ export class MessagePoller {
   }
 
   private async notifyAll(room: ChatRoom, message: ChatRoomMessage): Promise<void> {
-    const chatIds = getAllowedChatIds(this.config, this.state);
+    const chatIds = getAllowedChatIds(this.config);
     if (chatIds.length === 0) {
       return;
     }

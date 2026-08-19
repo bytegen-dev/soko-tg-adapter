@@ -15,6 +15,7 @@ Long-running Telegram bot (polling). Deploy **one replica only** or you will get
 | Variable | Description |
 |----------|-------------|
 | `TELEGRAM_BOT_TOKEN` | From [@BotFather](https://t.me/BotFather) |
+| `TELEGRAM_ALLOWED_CHAT_IDS` | Your Telegram chat ID (`pnpm get-chat-id`) |
 | `SOKOSUMI_API_KEY` | Sokosumi developer API key |
 | `SOKOSUMI_ORG_SLUG` | Your organization slug |
 
@@ -32,7 +33,6 @@ Long-running Telegram bot (polling). Deploy **one replica only** or you will get
 | `SOKOSUMI_CORE_BASE_URL` | `https://api.sokosumi.com` |
 | `SOKOSUMI_WEB_BASE_URL` | `https://app.sokosumi.com` |
 | `POLL_INTERVAL_MS` | `3000` |
-| `TELEGRAM_ALLOWED_CHAT_IDS` | *(empty = auto-register on /start)* |
 | `PORT` | `8080` (Railway may override) |
 
 ## Volume
@@ -53,7 +53,7 @@ The bot exposes `GET /health` on `PORT` for Railway health checks. Telegram poll
 
 ```bash
 pnpm build
-TELEGRAM_BOT_TOKEN=... SOKOSUMI_API_KEY=... SOKOSUMI_ORG_SLUG=... pnpm start
+TELEGRAM_BOT_TOKEN=... TELEGRAM_ALLOWED_CHAT_IDS=... SOKOSUMI_API_KEY=... SOKOSUMI_ORG_SLUG=... pnpm start
 ```
 
 ## CLI deploy
@@ -68,6 +68,6 @@ Set secrets with `railway variables set TELEGRAM_BOT_TOKEN=...` etc.
 
 ## After deploy
 
-Message your bot **`/start`** in Telegram to link your chat if `TELEGRAM_ALLOWED_CHAT_IDS` is empty.
+Message your bot **`/start`** in Telegram (your chat must be in `TELEGRAM_ALLOWED_CHAT_IDS`).
 
 Check logs: `railway logs` — expect `[sokosumi] authenticated`, `[health] listening`, `[bot] @... listening`.

@@ -4,12 +4,13 @@ Telegram alerts for Sokosumi **direct messages** and **org channels**. Covers hu
 
 ## Setup (3 things)
 
-1. **Telegram** — [@BotFather](https://t.me/BotFather) → `/newbot` → copy token
+1. **Telegram** — [@BotFather](https://t.me/BotFather) → `/newbot` → copy token → message the bot → `pnpm get-chat-id` → set `TELEGRAM_ALLOWED_CHAT_IDS`
 2. **Sokosumi** — Developer → API Keys + your org slug
 3. **`.env`**
 
 ```env
 TELEGRAM_BOT_TOKEN=...
+TELEGRAM_ALLOWED_CHAT_IDS=123456789
 SOKOSUMI_API_KEY=...
 SOKOSUMI_ORG_SLUG=...
 ```
@@ -19,7 +20,19 @@ pnpm install
 pnpm dev
 ```
 
-Open your bot in Telegram → **`/start`**. First start links your chat. Use the inline buttons on the welcome message (Chats, Settings, Help, Status).
+Open your bot in Telegram → **`/start`**. Use the inline buttons on the welcome message (Chats, Settings, Help, Status).
+
+## Security
+
+`TELEGRAM_ALLOWED_CHAT_IDS` is **required**. The bot will not start without it.
+
+- Only listed chat IDs can run commands or receive alerts
+- Everyone else gets **"This bot is private."**
+- Use a **dedicated** BotFather token (do not share with other adapters)
+
+```bash
+pnpm get-chat-id   # message the bot first, then run this
+```
 
 ## Commands
 

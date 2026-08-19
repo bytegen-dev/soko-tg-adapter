@@ -182,7 +182,7 @@ export function registerCallbacks(
   state: StateStore,
 ): void {
   bot.on("callback_query:data", async (ctx) => {
-    if (!(await ensureAllowed(ctx, config, state))) {
+    if (!(await ensureAllowed(ctx, config))) {
       await ctx.answerCallbackQuery({ text: "Not allowed." });
       return;
     }
