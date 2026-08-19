@@ -43,7 +43,12 @@ import {
   editMessageToStart,
   editMessageToStatus,
 } from "./menu-actions.js";
-import { E, withEmoji } from "./emoji.js";
+import {
+  DEFAULT_QUICK_REACT_EMOJI,
+  E,
+  withEmoji,
+} from "./emoji.js";
+import { getReactSession } from "./react-sessions.js";
 import type { Config } from "../config.js";
 import { SokosumiClient, type ChatRoom } from "../sokosumi/client.js";
 import type { StateStore } from "../state.js";
@@ -468,6 +473,28 @@ export function registerCallbacks(
             ctx.callbackQuery.message.chat.id,
             ctx.callbackQuery.message.message_id,
           );
+        }
+        return;
+      }
+
+      if (data.startsWith("react:")) {
+        const sessionId = data.slice("react:".length);
+        const session = getReactSession(sessionId);
+        if (!session) {
+          await safeAnswerCallback(ctx, { text: "Reaction expired" });
+          return;
+        }
+
+        try {
+          await client.toggleReaction(
+            session.roomId,
+            session.messageId,
+            DEFAULT_QUICK_REACT_EMOJI,
+          );
+          await safeAnswerCallback(ctx, { text: DEFAULT_QUICK_REACT_EMOJI });
+        } catch (error) {
+          console.error("[bot] react failed:", error);
+          await safeAnswerCallback(ctx, { text: "Could not react" });
         }
         return;
       }

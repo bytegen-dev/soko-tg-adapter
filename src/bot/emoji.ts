@@ -29,6 +29,7 @@ export const E = {
   loading: "⏳",
   sent: "✓",
   readDone: "✔️",
+  react: "👍",
   thread: "🧵",
   warn: "⚠️",
 } as const;
@@ -46,6 +47,8 @@ export function roomEmoji(room: ChatRoom): string {
   }
   return E.dm;
 }
+
+export const DEFAULT_QUICK_REACT_EMOJI = E.react;
 
 export function roomListPrefix(room: ChatRoom, muted: boolean): string {
   if (muted) {

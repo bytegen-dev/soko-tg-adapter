@@ -172,12 +172,13 @@ export class MessagePoller {
     }
   }
 
-  private roomKeyboard(room: ChatRoom): InlineKeyboard {
+  private roomKeyboard(room: ChatRoom, message: ChatRoomMessage): InlineKeyboard {
     return alertKeyboard(
       this.config,
       this.state,
       room.id,
       roomHasUnread(room),
+      message.id,
     );
   }
 
@@ -188,7 +189,7 @@ export class MessagePoller {
     }
 
     const text = formatAlert(room, message);
-    const keyboard = this.roomKeyboard(room);
+    const keyboard = this.roomKeyboard(room, message);
     await Promise.all(
       chatIds.map((chatId) =>
         this.bot.api.sendMessage(chatId, text, {

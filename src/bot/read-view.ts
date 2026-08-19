@@ -8,6 +8,10 @@ import {
 import { buildChatRoomUrl } from "../sokosumi/links.js";
 import type { StateStore } from "../state.js";
 import { E, withEmoji } from "./emoji.js";
+import {
+  createReactSession,
+  reactCallbackData,
+} from "./react-sessions.js";
 import { escapeHtml, escapeTelegramPlain } from "./text.js";
 import { formatMessageHtml } from "./markup.js";
 
@@ -53,11 +57,16 @@ export function alertKeyboard(
   state: StateStore,
   roomId: string,
   hasUnread: boolean,
+  messageId?: string,
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   keyboard
     .text(withEmoji(E.view, "View"), `read:oid:${roomId}`)
     .text(withEmoji(E.reply, "Reply"), `compose:oid:${roomId}`);
+  if (messageId) {
+    const reactId = createReactSession({ roomId, messageId });
+    keyboard.text(E.react, reactCallbackData(reactId));
+  }
   if (hasUnread) {
     keyboard
       .row()

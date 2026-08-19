@@ -201,6 +201,21 @@ export class SokosumiClient {
       method: "POST",
     });
   }
+
+  async toggleReaction(
+    roomId: string,
+    messageId: string,
+    emoji: string,
+  ): Promise<ChatRoomMessage> {
+    const response = await this.request<{ data: ChatRoomMessage }>(
+      `/chats/rooms/${encodeURIComponent(roomId)}/messages/${encodeURIComponent(messageId)}/reactions`,
+      {
+        method: "POST",
+        body: JSON.stringify({ emoji }),
+      },
+    );
+    return response.data;
+  }
 }
 
 export function isHumanDirectRoom(room: ChatRoom): boolean {
