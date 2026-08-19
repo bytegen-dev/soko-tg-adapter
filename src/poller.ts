@@ -4,12 +4,12 @@ import { InlineKeyboard } from "grammy";
 import type { Config } from "./config.js";
 import { getAllowedChatIds } from "./bot/access.js";
 import { escapeHtml } from "./bot/text.js";
+import { formatMessageHtml } from "./bot/markup.js";
 import { E, roomEmoji, withEmoji } from "./bot/emoji.js";
 import {
   messageSenderName,
   roomDisplayName,
   SokosumiClient,
-  truncate,
   type ChatRoom,
   type ChatRoomMessage,
 } from "./sokosumi/client.js";
@@ -37,9 +37,12 @@ function isFromSelf(message: ChatRoomMessage, selfUserId?: string): boolean {
 function formatAlert(room: ChatRoom, message: ChatRoomMessage): string {
   const title = roomDisplayName(room, undefined);
   const sender = messageSenderName(message);
-  const body = truncate(message.content);
   const icon = roomEmoji(room);
-  return `${icon} <b>${escapeHtml(title)}</b>\n<b>${escapeHtml(sender)}:</b> ${escapeHtml(body)}`;
+  return [
+    `<b>${E.unread} New message</b>`,
+    `${icon} <b>${escapeHtml(title)}</b>`,
+    `<b>${escapeHtml(sender)}:</b> ${formatMessageHtml(message.content, 350)}`,
+  ].join("\n");
 }
 
 export class MessagePoller {
@@ -169,7 +172,9 @@ export class MessagePoller {
 
   private roomKeyboard(roomId: string): InlineKeyboard {
     const keyboard = new InlineKeyboard();
-    keyboard.text(withEmoji(E.view, "View"), `read:oid:${roomId}`);
+    keyboard
+      .text(withEmoji(E.view, "View"), `read:oid:${roomId}`)
+      .text(withEmoji(E.reply, "Reply"), `compose:oid:${roomId}`);
     keyboard.row().url(withEmoji(E.open, "Open"), buildChatRoomUrl(this.config, roomId));
     if (!this.state.isRoomMuted(roomId)) {
       keyboard.row().text(withEmoji(E.mute, "Mute"), `mute:oid:${roomId}`);

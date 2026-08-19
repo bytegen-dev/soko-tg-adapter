@@ -24,9 +24,11 @@ Open your bot in Telegram → **`/start`**. First start links your chat. Use the
 ## Commands
 
 - `/rooms` - list DMs and channels
-- `/read 1` - open a chat; tap **Older messages** for history
-- `/send 1 hello` - reply
-- `/settings` - mute chats, mute all, manage alerts
+- `/read 1` - open a chat; tap **Older** for history
+- Tap **Reply** in a chat, type your message, send
+- `/send 1 hello` - send without opening the chat
+- `/cancel` - stop an in-progress reply
+- `/settings` - mute chats, quiet hours, mute all
 - `/help` - full command list
 
 Alerts every ~3s with **View chat**, **Open in Sokosumi**, and **Mute chat** buttons.

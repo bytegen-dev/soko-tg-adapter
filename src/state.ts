@@ -1,6 +1,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import {
+  DEFAULT_QUIET_END,
+  DEFAULT_QUIET_START,
+  DEFAULT_QUIET_TIMEZONE,
+  quietHoursActive,
+} from "./bot/quiet-hours.js";
+
 export interface BotState {
   /** Latest message id we've notified for, per room. */
   lastNotifiedMessageId: Record<string, string>;
@@ -14,6 +21,14 @@ export interface BotState {
   mutedRoomIds: string[];
   /** When true, no Telegram alerts are sent. */
   muteAll: boolean;
+  /** When true, pause alerts during the daily quiet window. */
+  quietHoursEnabled: boolean;
+  /** Daily quiet window start (HH:MM, 24h). */
+  quietHoursStart: string;
+  /** Daily quiet window end (HH:MM, 24h). */
+  quietHoursEnd: string;
+  /** IANA timezone for quiet hours. */
+  quietHoursTimezone: string;
 }
 
 const DEFAULT_STATE: BotState = {
@@ -22,6 +37,10 @@ const DEFAULT_STATE: BotState = {
   registeredChatIds: [],
   mutedRoomIds: [],
   muteAll: false,
+  quietHoursEnabled: false,
+  quietHoursStart: DEFAULT_QUIET_START,
+  quietHoursEnd: DEFAULT_QUIET_END,
+  quietHoursTimezone: DEFAULT_QUIET_TIMEZONE,
 };
 
 export class StateStore {
@@ -47,6 +66,10 @@ export class StateStore {
         registeredChatIds: parsed.registeredChatIds ?? [],
         mutedRoomIds: parsed.mutedRoomIds ?? [],
         muteAll: parsed.muteAll ?? false,
+        quietHoursEnabled: parsed.quietHoursEnabled ?? false,
+        quietHoursStart: parsed.quietHoursStart ?? DEFAULT_QUIET_START,
+        quietHoursEnd: parsed.quietHoursEnd ?? DEFAULT_QUIET_END,
+        quietHoursTimezone: parsed.quietHoursTimezone ?? DEFAULT_QUIET_TIMEZONE,
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -95,8 +118,34 @@ export class StateStore {
     return this.state.mutedRoomIds.includes(roomId);
   }
 
-  shouldNotify(roomId: string): boolean {
-    return !this.isRoomMuted(roomId);
+  shouldNotify(roomId: string, now = new Date()): boolean {
+    if (this.isRoomMuted(roomId)) {
+      return false;
+    }
+    if (quietHoursActive(this.state, now)) {
+      return false;
+    }
+    return true;
+  }
+
+  setQuietHoursEnabled(enabled: boolean): void {
+    this.state.quietHoursEnabled = enabled;
+  }
+
+  setQuietHoursStart(time: string): void {
+    this.state.quietHoursStart = time;
+  }
+
+  setQuietHoursEnd(time: string): void {
+    this.state.quietHoursEnd = time;
+  }
+
+  setQuietHoursTimezone(timezone: string): void {
+    this.state.quietHoursTimezone = timezone;
+  }
+
+  isQuietHoursActive(now = new Date()): boolean {
+    return quietHoursActive(this.state, now);
   }
 
   muteRoom(roomId: string): void {
