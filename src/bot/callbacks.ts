@@ -194,7 +194,7 @@ export function registerCallbacks(
 
         switch (data) {
           case "menu:home":
-            await editMessageToStart(bot, chatId, messageId);
+            await editMessageToStart(bot, client, chatId, messageId);
             break;
           case "menu:chats":
             await editMessageToRooms(bot, client, state, chatId, messageId);

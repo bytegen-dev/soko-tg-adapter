@@ -17,7 +17,7 @@ import {
   deliverRoomMessage,
   sendComposedMessage,
 } from "./send-actions.js";
-import { HELP_TEXT, START_TEXT, LOADING_CHATS, LOADING_SETTINGS, ERROR_LOAD_CHATS, ERROR_LOAD_SETTINGS, ERROR_GENERIC, buildStatusText } from "./text.js";
+import { HELP_TEXT, buildStartText, LOADING_CHATS, LOADING_SETTINGS, ERROR_LOAD_CHATS, ERROR_LOAD_SETTINGS, ERROR_GENERIC, buildStatusText } from "./text.js";
 import { E, withEmoji } from "./emoji.js";
 import type { Config } from "../config.js";
 import { SokosumiClient } from "../sokosumi/client.js";
@@ -111,7 +111,8 @@ export function registerCommands(
         return;
       }
       await clearReplyKeyboard(ctx);
-      await ctx.reply(START_TEXT, { reply_markup: mainMenuInline() });
+      const me = await client.getMe();
+      await ctx.reply(buildStartText(me), { reply_markup: mainMenuInline() });
     } catch (error) {
       console.error("[bot] /start failed:", error);
       await ctx.reply(ERROR_GENERIC);

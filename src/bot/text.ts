@@ -56,12 +56,22 @@ export function buildStatusText(config: Config, state: StateStore): string {
   ].join("\n");
 }
 
-export const START_TEXT = [
-  `${E.unread} Sokosumi alerts`,
-  "",
-  "New DMs and channel posts show up here within a few seconds.",
-  "Use the buttons on this message to browse chats or change settings.",
-].join("\n");
+export interface SokosumiUserSummary {
+  name: string;
+  email: string;
+}
+
+export function buildStartText(user?: SokosumiUserSummary): string {
+  const lines = [`${E.unread} Sokosumi alerts`, ""];
+  if (user) {
+    lines.push(`Connected as ${user.name} (${user.email})`, "");
+  }
+  lines.push(
+    "New DMs and channel posts show up here within a few seconds.",
+    "Use the buttons on this message to browse chats or change settings.",
+  );
+  return lines.join("\n");
+}
 
 export const LOADING_CHATS = withEmoji(E.loading, "Loading chats...");
 export const LOADING_SETTINGS = withEmoji(E.loading, "Loading settings...");

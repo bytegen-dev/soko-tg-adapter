@@ -12,7 +12,7 @@ import {
   HELP_TEXT,
   LOADING_CHATS,
   LOADING_SETTINGS,
-  START_TEXT,
+  buildStartText,
   buildStatusText,
 } from "./text.js";
 
@@ -28,10 +28,12 @@ async function syncRooms(
 
 export async function editMessageToStart(
   bot: Bot,
+  client: SokosumiClient,
   chatId: number,
   messageId: number,
 ): Promise<void> {
-  await bot.api.editMessageText(chatId, messageId, START_TEXT, {
+  const me = await client.getMe();
+  await bot.api.editMessageText(chatId, messageId, buildStartText(me), {
     reply_markup: mainMenuInline(),
   });
 }
