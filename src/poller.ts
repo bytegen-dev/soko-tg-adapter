@@ -3,6 +3,7 @@ import { InlineKeyboard } from "grammy";
 
 import type { Config } from "./config.js";
 import { getAllowedChatIds } from "./bot/access.js";
+import { escapeHtml } from "./bot/text.js";
 import {
   messageSenderName,
   roomDisplayName,
@@ -36,14 +37,7 @@ function formatAlert(room: ChatRoom, message: ChatRoomMessage): string {
   const title = roomDisplayName(room, undefined);
   const sender = messageSenderName(message);
   const body = truncate(message.content);
-  return `💬 <b>${escapeHtml(title)}</b>\n<b>${escapeHtml(sender)}:</b> ${escapeHtml(body)}`;
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+  return `<b>${escapeHtml(title)}</b>\n<b>${escapeHtml(sender)}:</b> ${escapeHtml(body)}`;
 }
 
 export class MessagePoller {
@@ -90,7 +84,7 @@ export class MessagePoller {
   }
 
   private async pollOnce(): Promise<void> {
-    const rooms = await this.client.listDirectRooms();
+    const rooms = await this.client.listRooms();
     this.state.setRoomOrder(rooms.map((room) => room.id));
 
     const roomsToCheck = rooms.filter(
@@ -105,7 +99,7 @@ export class MessagePoller {
       this.bootstrapped = true;
       await this.state.save();
       console.log(
-        `[poller] bootstrapped ${rooms.length} direct DM(s); live alerts on`,
+        `[poller] bootstrapped ${rooms.length} chat(s); live alerts on`,
       );
     }
   }
@@ -159,7 +153,9 @@ export class MessagePoller {
         continue;
       }
 
-      await this.notifyAll(room, message);
+      if (this.state.shouldNotify(room.id)) {
+        await this.notifyAll(room, message);
+      }
       lastSentId = message.id;
     }
 
@@ -170,10 +166,13 @@ export class MessagePoller {
   }
 
   private roomKeyboard(roomId: string): InlineKeyboard {
-    return new InlineKeyboard().url(
-      "Open in Sokosumi",
-      buildChatRoomUrl(this.config, roomId),
-    );
+    const keyboard = new InlineKeyboard();
+    keyboard.text("View chat", `read:oid:${roomId}`);
+    keyboard.row().url("Open in Sokosumi", buildChatRoomUrl(this.config, roomId));
+    if (!this.state.isRoomMuted(roomId)) {
+      keyboard.row().text("Mute chat", `mute:oid:${roomId}`);
+    }
+    return keyboard;
   }
 
   private async notifyAll(room: ChatRoom, message: ChatRoomMessage): Promise<void> {

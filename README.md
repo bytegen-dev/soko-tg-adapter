@@ -1,6 +1,6 @@
 # soko-tg-adapter
 
-Telegram alerts for Sokosumi **direct messages** — org human DMs and **coworker 1:1** (e.g. Alex).
+Telegram alerts for Sokosumi **direct messages** and **org channels**. Covers human DMs, coworker 1:1 (e.g. Alex), and channels you belong to.
 
 ## Setup (3 things)
 
@@ -19,12 +19,14 @@ pnpm install
 pnpm dev
 ```
 
-Open your bot in Telegram → **`/start`**. First start links your chat. Done.
+Open your bot in Telegram → **`/start`**. First start links your chat. Use the menu buttons at the bottom (Chats, Settings, Help, Status).
 
 ## Commands
 
-- `/rooms` — list DMs
-- `/read 1` — messages
-- `/send 1 hello` — reply
+- `/rooms` - list DMs and channels
+- `/read 1` - open a chat; tap **Older messages** for history
+- `/send 1 hello` - reply
+- `/settings` - mute chats, mute all, manage alerts
+- `/help` - full command list
 
-Alerts every ~3s with an **Open in Sokosumi** button.
+Alerts every ~3s with **View chat**, **Open in Sokosumi**, and **Mute chat** buttons.

@@ -1,6 +1,7 @@
 import { Bot } from "grammy";
 
 import { registerCommands } from "./bot/commands.js";
+import { registerCallbacks } from "./bot/callbacks.js";
 import { loadConfig } from "./config.js";
 import { MessagePoller } from "./poller.js";
 import { SokosumiClient } from "./sokosumi/client.js";
@@ -24,7 +25,11 @@ async function main(): Promise<void> {
   }
 
   const bot = new Bot(config.TELEGRAM_BOT_TOKEN);
+
+  await bot.api.deleteWebhook({ drop_pending_updates: true });
+
   registerCommands(bot, config, client, state);
+  registerCallbacks(bot, config, client, state);
 
   const poller = new MessagePoller(bot, config, client, state);
   poller.start();

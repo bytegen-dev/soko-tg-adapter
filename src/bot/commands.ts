@@ -1,36 +1,112 @@
-import type { Bot } from "grammy";
-import { InlineKeyboard } from "grammy";
+import type { Bot, Context } from "grammy";
 
 import { ensureAllowed } from "./access.js";
+import { mainMenuKeyboard, MENU_LABELS } from "./menu-keyboard.js";
+import { resolveRoomId } from "./resolve-room.js";
+import { sendReadView } from "./read-actions.js";
+import { buildRoomsText, roomsKeyboard } from "./rooms-view.js";
+import { buildSettingsText, settingsKeyboard } from "./settings-view.js";
+import { HELP_TEXT, START_TEXT } from "./text.js";
 import type { Config } from "../config.js";
-import {
-  messageSenderName,
-  roomDisplayName,
-  SokosumiClient,
-  truncate,
-} from "../sokosumi/client.js";
-import { buildChatRoomUrl } from "../sokosumi/links.js";
+import { SokosumiClient } from "../sokosumi/client.js";
 import type { StateStore } from "../state.js";
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;");
+const MENU_VALUES = new Set<string>(Object.values(MENU_LABELS));
+
+function matchCommandArg(ctx: Context): string {
+  const m = ctx.match;
+  if (typeof m === "string") {
+    return m.trim();
+  }
+  if (Array.isArray(m)) {
+    return (m[0] ?? "").trim();
+  }
+  return "";
 }
 
-function resolveRoomId(state: StateStore, token: string): string | null {
-  const trimmed = token.trim();
-  if (/^[0-9a-f-]{36}$/i.test(trimmed)) {
-    return trimmed;
-  }
+async function syncRooms(
+  client: SokosumiClient,
+  state: StateStore,
+): Promise<Awaited<ReturnType<SokosumiClient["listRooms"]>>> {
+  const rooms = await client.listRooms();
+  state.setRoomOrder(rooms.map((room) => room.id));
+  await state.save();
+  return rooms;
+}
 
-  const index = Number.parseInt(trimmed, 10);
-  if (!Number.isFinite(index) || index < 1) {
-    return null;
-  }
+function statusText(config: Config, state: StateStore): string {
+  const muted = state.snapshot.muteAll
+    ? "all muted"
+    : state.snapshot.mutedRoomIds.length > 0
+      ? `${state.snapshot.mutedRoomIds.length} chat(s) muted`
+      : "alerts on";
+  return [
+    `Organization: ${config.SOKOSUMI_ORG_SLUG}`,
+    `Poll interval: ${config.POLL_INTERVAL_MS}ms`,
+    `Alerts: ${muted}`,
+  ].join("\n");
+}
 
-  return state.snapshot.roomOrder[index - 1] ?? null;
+async function replyRooms(
+  ctx: Context,
+  client: SokosumiClient,
+  state: StateStore,
+  menu: ReturnType<typeof mainMenuKeyboard>,
+): Promise<void> {
+  const loading = await ctx.reply("Loading chats...", { reply_markup: menu });
+  try {
+    const rooms = await syncRooms(client, state);
+    await ctx.api.editMessageText(
+      loading.chat.id,
+      loading.message_id,
+      buildRoomsText(rooms),
+      {
+        parse_mode: "HTML",
+        reply_markup: roomsKeyboard(rooms, state, state.snapshot.selfUserId),
+      },
+    );
+  } catch (error) {
+    console.error("[bot] rooms failed:", error);
+    await ctx.api.editMessageText(
+      loading.chat.id,
+      loading.message_id,
+      "Could not load chats. Check API key and org slug.",
+    );
+  }
+}
+
+async function replySettings(
+  ctx: Context,
+  config: Config,
+  client: SokosumiClient,
+  state: StateStore,
+  menu: ReturnType<typeof mainMenuKeyboard>,
+): Promise<void> {
+  const loading = await ctx.reply("Loading settings...", { reply_markup: menu });
+  try {
+    const rooms = await syncRooms(client, state);
+    await ctx.api.editMessageText(
+      loading.chat.id,
+      loading.message_id,
+      buildSettingsText(
+        state,
+        rooms,
+        config.POLL_INTERVAL_MS,
+        config.SOKOSUMI_ORG_SLUG,
+      ),
+      {
+        parse_mode: "HTML",
+        reply_markup: settingsKeyboard(state),
+      },
+    );
+  } catch (error) {
+    console.error("[bot] settings failed:", error);
+    await ctx.api.editMessageText(
+      loading.chat.id,
+      loading.message_id,
+      "Could not load settings.",
+    );
+  }
 }
 
 export function registerCommands(
@@ -39,60 +115,75 @@ export function registerCommands(
   client: SokosumiClient,
   state: StateStore,
 ): void {
+  const menu = mainMenuKeyboard();
+
   bot.command("start", async (ctx) => {
+    try {
+      if (!(await ensureAllowed(ctx, config, state))) {
+        return;
+      }
+      await ctx.reply(START_TEXT, { reply_markup: menu });
+    } catch (error) {
+      console.error("[bot] /start failed:", error);
+      await ctx.reply("Something went wrong. Try again in a moment.", {
+        reply_markup: menu,
+      });
+    }
+  });
+
+  bot.command("help", async (ctx) => {
     if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
-    await ctx.reply(
-      [
-        "Sokosumi DM alerts are on (humans + coworker agents like Alex).",
-        "",
-        "Commands:",
-        "/rooms — list org DMs",
-        "/read <n|roomId> — recent messages",
-        "/send <n|roomId> <text> — reply",
-        "/status — poll settings",
-      ].join("\n"),
-    );
+    await ctx.reply(HELP_TEXT, { reply_markup: menu });
   });
 
   bot.command("status", async (ctx) => {
     if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
-    await ctx.reply(
-      `Polling every ${config.POLL_INTERVAL_MS}ms for direct DMs (${config.SOKOSUMI_ORG_SLUG}) — humans + coworker 1:1.`,
-    );
+    await ctx.reply(statusText(config, state), { reply_markup: menu });
+  });
+
+  bot.command("settings", async (ctx) => {
+    if (!(await ensureAllowed(ctx, config, state))) {
+      return;
+    }
+    await replySettings(ctx, config, client, state, menu);
   });
 
   bot.command("rooms", async (ctx) => {
     if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
+    await replyRooms(ctx, client, state, menu);
+  });
 
-    try {
-      const rooms = await client.listDirectRooms();
-      state.setRoomOrder(rooms.map((room) => room.id));
-      await state.save();
-
-      if (rooms.length === 0) {
-        await ctx.reply("No direct DMs yet (humans or coworker agents).");
+  bot.on("message:text").filter(
+    (ctx) => MENU_VALUES.has(ctx.message.text.trim()),
+    async (ctx) => {
+      if (!(await ensureAllowed(ctx, config, state))) {
         return;
       }
 
-      const selfUserId = state.snapshot.selfUserId;
-      const lines = rooms.map((room, index) => {
-        const unread =
-          room.unreadCount > 0 ? ` (${room.unreadCount} unread)` : "";
-        return `${index + 1}. ${roomDisplayName(room, selfUserId)}${unread}\n   <code>${room.id}</code>`;
-      });
-
-      await ctx.reply(lines.join("\n\n"), { parse_mode: "HTML" });
-    } catch (error) {
-      console.error("[bot] /rooms failed:", error);
-      await ctx.reply("Could not load rooms. Check API key and org slug.");
-    }
-  });
+      const label = ctx.message.text.trim();
+      if (label === MENU_LABELS.chats) {
+        await replyRooms(ctx, client, state, menu);
+        return;
+      }
+      if (label === MENU_LABELS.settings) {
+        await replySettings(ctx, config, client, state, menu);
+        return;
+      }
+      if (label === MENU_LABELS.help) {
+        await ctx.reply(HELP_TEXT, { reply_markup: menu });
+        return;
+      }
+      if (label === MENU_LABELS.status) {
+        await ctx.reply(statusText(config, state), { reply_markup: menu });
+      }
+    },
+  );
 
   bot.command("read", async (ctx) => {
     if (!(await ensureAllowed(ctx, config, state))) {
@@ -101,47 +192,28 @@ export function registerCommands(
 
     const token = ctx.match?.trim();
     if (!token) {
-      await ctx.reply("Usage: /read <room number from /rooms or room UUID>");
+      await ctx.reply("Usage: /read <number from /rooms or room id>", {
+        reply_markup: menu,
+      });
       return;
     }
 
     const roomId = resolveRoomId(state, token);
     if (!roomId) {
-      await ctx.reply("Unknown room. Run /rooms first.");
+      await ctx.reply("Unknown chat. Run /rooms first.", { reply_markup: menu });
       return;
     }
 
+    const index = Number.parseInt(token, 10);
+    const roomIndex = Number.isFinite(index) && index >= 1 ? index : null;
+
     try {
-      const rooms = await client.listDirectRooms();
-      const room = rooms.find((entry) => entry.id === roomId);
-      const { messages } = await client.listRoomMessages(roomId, { limit: 15 });
-      if (messages.length === 0) {
-        await ctx.reply("No messages yet.");
-        return;
-      }
-
-      const selfUserId = state.snapshot.selfUserId;
-      const title = room
-        ? roomDisplayName(room, selfUserId)
-        : "Direct message";
-      const body = messages
-        .map((message) => {
-          const sender = messageSenderName(message);
-          const text = message.deletedAt ? "[deleted]" : truncate(message.content, 500);
-          return `<b>${escapeHtml(sender)}</b>: ${escapeHtml(text)}`;
-        })
-        .join("\n");
-
-      await ctx.reply(`<b>${escapeHtml(title)}</b>\n\n${body}`, {
-        parse_mode: "HTML",
-        reply_markup: new InlineKeyboard().url(
-          "Open in Sokosumi",
-          buildChatRoomUrl(config, roomId),
-        ),
-      });
+      await sendReadView(ctx, config, client, state, roomId, roomIndex);
     } catch (error) {
       console.error("[bot] /read failed:", error);
-      await ctx.reply("Could not load messages for that room.");
+      await ctx.reply("Could not load messages for that chat.", {
+        reply_markup: menu,
+      });
     }
   });
 
@@ -153,20 +225,22 @@ export function registerCommands(
     const raw = ctx.match?.trim() ?? "";
     const spaceIndex = raw.indexOf(" ");
     if (spaceIndex <= 0) {
-      await ctx.reply("Usage: /send <room number or UUID> <message>");
+      await ctx.reply("Usage: /send <number or room id> <message>", {
+        reply_markup: menu,
+      });
       return;
     }
 
     const roomToken = raw.slice(0, spaceIndex);
     const content = raw.slice(spaceIndex + 1).trim();
     if (!content) {
-      await ctx.reply("Message cannot be empty.");
+      await ctx.reply("Message cannot be empty.", { reply_markup: menu });
       return;
     }
 
     const roomId = resolveRoomId(state, roomToken);
     if (!roomId) {
-      await ctx.reply("Unknown room. Run /rooms first.");
+      await ctx.reply("Unknown chat. Run /rooms first.", { reply_markup: menu });
       return;
     }
 
@@ -174,19 +248,66 @@ export function registerCommands(
       const message = await client.sendMessage(roomId, content);
       state.setLastNotifiedMessageId(roomId, message.id);
       await state.save();
-      await ctx.reply("Sent.");
+      await ctx.reply("Sent.", { reply_markup: menu });
     } catch (error) {
       console.error("[bot] /send failed:", error);
-      await ctx.reply("Could not send message.");
+      await ctx.reply("Could not send message.", { reply_markup: menu });
     }
   });
 
-  bot.command("help", async (ctx) => {
+  async function muteByToken(ctx: Context, mute: boolean): Promise<void> {
+    const token = matchCommandArg(ctx);
+    if (!token) {
+      await ctx.reply(`Usage: /${mute ? "mute" : "unmute"} <number from /rooms>`, {
+        reply_markup: menu,
+      });
+      return;
+    }
+
+    const roomId = resolveRoomId(state, token);
+    if (!roomId) {
+      await ctx.reply("Unknown chat. Run /rooms first.", { reply_markup: menu });
+      return;
+    }
+
+    if (mute) {
+      state.muteRoom(roomId);
+    } else {
+      state.unmuteRoom(roomId);
+    }
+    await state.save();
+    await ctx.reply(mute ? "Chat muted." : "Chat unmuted.", { reply_markup: menu });
+  }
+
+  bot.command("mute", async (ctx) => {
     if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
-    await ctx.reply(
-      "/rooms — DMs\n/read <n|id> — history\n/send <n|id> <text> — reply\n/status — poll interval",
-    );
+    await muteByToken(ctx, true);
+  });
+
+  bot.command("unmute", async (ctx) => {
+    if (!(await ensureAllowed(ctx, config, state))) {
+      return;
+    }
+    await muteByToken(ctx, false);
+  });
+
+  bot.command("muteall", async (ctx) => {
+    if (!(await ensureAllowed(ctx, config, state))) {
+      return;
+    }
+    state.setMuteAll(true);
+    await state.save();
+    await ctx.reply("All alerts muted.", { reply_markup: menu });
+  });
+
+  bot.command("unmuteall", async (ctx) => {
+    if (!(await ensureAllowed(ctx, config, state))) {
+      return;
+    }
+    state.unmuteAll();
+    await state.save();
+    await ctx.reply("All alerts unmuted.", { reply_markup: menu });
   });
 }

@@ -10,12 +10,18 @@ export interface BotState {
   roomOrder: string[];
   /** First /start when no allowlist is configured. */
   registeredChatIds: string[];
+  /** Room ids with alerts suppressed in Telegram. */
+  mutedRoomIds: string[];
+  /** When true, no Telegram alerts are sent. */
+  muteAll: boolean;
 }
 
 const DEFAULT_STATE: BotState = {
   lastNotifiedMessageId: {},
   roomOrder: [],
   registeredChatIds: [],
+  mutedRoomIds: [],
+  muteAll: false,
 };
 
 export class StateStore {
@@ -39,6 +45,8 @@ export class StateStore {
         selfUserId: parsed.selfUserId,
         roomOrder: parsed.roomOrder ?? [],
         registeredChatIds: parsed.registeredChatIds ?? [],
+        mutedRoomIds: parsed.mutedRoomIds ?? [],
+        muteAll: parsed.muteAll ?? false,
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -78,5 +86,37 @@ export class StateStore {
     if (!this.state.registeredChatIds.includes(chatId)) {
       this.state.registeredChatIds.push(chatId);
     }
+  }
+
+  isRoomMuted(roomId: string): boolean {
+    if (this.state.muteAll) {
+      return true;
+    }
+    return this.state.mutedRoomIds.includes(roomId);
+  }
+
+  shouldNotify(roomId: string): boolean {
+    return !this.isRoomMuted(roomId);
+  }
+
+  muteRoom(roomId: string): void {
+    if (!this.state.mutedRoomIds.includes(roomId)) {
+      this.state.mutedRoomIds.push(roomId);
+    }
+  }
+
+  unmuteRoom(roomId: string): void {
+    this.state.mutedRoomIds = this.state.mutedRoomIds.filter(
+      (id) => id !== roomId,
+    );
+  }
+
+  setMuteAll(enabled: boolean): void {
+    this.state.muteAll = enabled;
+  }
+
+  unmuteAll(): void {
+    this.state.muteAll = false;
+    this.state.mutedRoomIds = [];
   }
 }

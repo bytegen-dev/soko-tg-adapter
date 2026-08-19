@@ -58,13 +58,12 @@ export class SokosumiClient {
     return JSON.parse(text) as T;
   }
 
-  async listDirectRooms(): Promise<ChatRoom[]> {
+  async listRooms(): Promise<ChatRoom[]> {
     const rooms: ChatRoom[] = [];
     let cursor: string | undefined;
 
     for (let page = 0; page < 20; page += 1) {
       const query = new URLSearchParams({
-        kind: "direct",
         status: "active",
         limit: "100",
       });
@@ -84,7 +83,12 @@ export class SokosumiClient {
       cursor = nextCursor;
     }
 
-    return rooms.filter(isNotifiableDirectRoom);
+    return rooms.filter(isNotifiableRoom);
+  }
+
+  /** @deprecated Use listRooms */
+  async listDirectRooms(): Promise<ChatRoom[]> {
+    return this.listRooms();
   }
 
   async listRoomMessages(
@@ -146,12 +150,30 @@ export function isCoworkerDirectRoom(room: ChatRoom): boolean {
   );
 }
 
+/** Org channels the caller is a member of. */
+export function isChannelRoom(room: ChatRoom): boolean {
+  return room.kind === "channel";
+}
+
+/** Human DMs, coworker 1:1 DMs, and org channels. */
+export function isNotifiableRoom(room: ChatRoom): boolean {
+  if (isChannelRoom(room)) {
+    return true;
+  }
+  return isNotifiableDirectRoom(room);
+}
+
 /** Human 1:1/group DMs and coworker 1:1 DMs — not channels. */
 export function isNotifiableDirectRoom(room: ChatRoom): boolean {
   return isHumanDirectRoom(room) || isCoworkerDirectRoom(room);
 }
 
 export function roomDisplayName(room: ChatRoom, selfUserId?: string): string {
+  if (isChannelRoom(room)) {
+    const name = room.name || room.slug;
+    return name.startsWith("#") ? name : `#${name}`;
+  }
+
   if (isCoworkerDirectRoom(room)) {
     return room.coworkerMembers[0]?.name ?? room.name ?? room.slug;
   }
