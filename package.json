@@ -15,7 +15,7 @@
     "typecheck": "tsc --noEmit",
     "build": "tsc",
     "check": "pnpm typecheck && pnpm build",
-    "prepare": "husky"
+    "prepare": "node -e \"if (process.env.HUSKY === '0' || process.env.NODE_ENV === 'production') process.exit(0)\" && husky"
   },
   "dependencies": {
     "grammy": "1.38.2",
