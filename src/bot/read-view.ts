@@ -3,13 +3,13 @@ import { InlineKeyboard } from "grammy";
 import type { Config } from "../config.js";
 import {
   messageSenderName,
-  truncate,
   type ChatRoomMessage,
 } from "../sokosumi/client.js";
 import { buildChatRoomUrl } from "../sokosumi/links.js";
 import type { StateStore } from "../state.js";
 import { E, withEmoji } from "./emoji.js";
 import { escapeHtml } from "./text.js";
+import { formatMessageHtml } from "./markup.js";
 
 export const READ_PAGE_SIZE = 12;
 
@@ -30,10 +30,10 @@ export function formatReadBody(messages: ChatRoomMessage[]): string {
   return messages
     .map((message) => {
       const sender = messageSenderName(message);
-      const text = message.deletedAt
-        ? "[deleted]"
-        : truncate(message.content, 420);
-      return `<b>${escapeHtml(sender)}</b>: ${escapeHtml(text)}`;
+      const body = message.deletedAt
+        ? escapeHtml("[deleted]")
+        : formatMessageHtml(message.content, 420);
+      return `<b>${escapeHtml(sender)}</b>: ${body}`;
     })
     .join("\n\n");
 }
@@ -58,7 +58,8 @@ export function readKeyboard(
   }
   keyboard
     .row()
-    .url(withEmoji(E.open, "Open in Sokosumi"), buildChatRoomUrl(config, page.roomId));
+    .text(withEmoji(E.reply, "Reply"), `compose:oid:${page.roomId}`)
+    .url(withEmoji(E.open, "Open"), buildChatRoomUrl(config, page.roomId));
 
   const muted = state.isRoomMuted(page.roomId);
   if (page.roomIndex !== null) {

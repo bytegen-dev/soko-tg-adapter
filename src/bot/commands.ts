@@ -6,7 +6,14 @@ import { resolveRoomId } from "./resolve-room.js";
 import { sendReadView } from "./read-actions.js";
 import { buildRoomsText, roomsKeyboard } from "./rooms-view.js";
 import { buildSettingsText, settingsKeyboard } from "./settings-view.js";
+import { getComposeSession, hasComposeSession } from "./compose-sessions.js";
+import {
+  cancelCompose,
+  deliverRoomMessage,
+  sendComposedMessage,
+} from "./send-actions.js";
 import { HELP_TEXT, START_TEXT, LOADING_CHATS, LOADING_SETTINGS, ERROR_LOAD_CHATS, ERROR_LOAD_SETTINGS, ERROR_GENERIC } from "./text.js";
+import { describeQuietHours } from "./quiet-hours.js";
 import { E, withEmoji } from "./emoji.js";
 import type { Config } from "../config.js";
 import { SokosumiClient } from "../sokosumi/client.js";
@@ -45,6 +52,7 @@ function statusText(config: Config, state: StateStore): string {
     `Organization: ${config.SOKOSUMI_ORG_SLUG}`,
     `Poll interval: ${config.POLL_INTERVAL_MS}ms`,
     `Alerts: ${muted}`,
+    `Quiet hours: ${describeQuietHours(state.snapshot)}`,
   ].join("\n");
 }
 
@@ -197,6 +205,63 @@ export function registerCommands(
     },
   );
 
+  bot.on("message:text").filter(
+    (ctx) => {
+      const text = ctx.message.text.trim();
+      if (text.startsWith("/")) {
+        return false;
+      }
+      if (matchMenuKey(text)) {
+        return false;
+      }
+      const chatId = ctx.chat?.id;
+      if (!chatId) {
+        return false;
+      }
+      return hasComposeSession(String(chatId));
+    },
+    async (ctx) => {
+      if (!(await ensureAllowed(ctx, config, state))) {
+        return;
+      }
+
+      const chatId = ctx.chat?.id;
+      if (!chatId) {
+        return;
+      }
+
+      const session = getComposeSession(String(chatId));
+      if (!session) {
+        return;
+      }
+
+      const content = ctx.message.text.trim();
+      if (!content) {
+        await ctx.reply(withEmoji(E.warn, "Message cannot be empty."));
+        return;
+      }
+
+      try {
+        await sendComposedMessage(
+          ctx,
+          config,
+          client,
+          state,
+          session.roomId,
+          session.title,
+          session.roomIndex,
+          content,
+          menu,
+        );
+      } catch (error) {
+        console.error("[bot] compose send failed:", error);
+        await ctx.reply(withEmoji(E.warn, "Could not send message."), {
+          reply_markup: menu,
+        });
+      }
+    },
+  );
+
   bot.command("read", async (ctx) => {
     if (!(await ensureAllowed(ctx, config, state))) {
       return;
@@ -234,19 +299,22 @@ export function registerCommands(
       return;
     }
 
-    const raw = ctx.match?.trim() ?? "";
+    const raw = matchCommandArg(ctx);
     const spaceIndex = raw.indexOf(" ");
     if (spaceIndex <= 0) {
-      await ctx.reply("Usage: /send <number or room id> <message>", {
-        reply_markup: menu,
-      });
+      await ctx.reply(
+        withEmoji(E.reply, "Usage: /send <number> <message> or tap Reply in a chat."),
+        { reply_markup: menu },
+      );
       return;
     }
 
     const roomToken = raw.slice(0, spaceIndex);
     const content = raw.slice(spaceIndex + 1).trim();
     if (!content) {
-      await ctx.reply("Message cannot be empty.", { reply_markup: menu });
+      await ctx.reply(withEmoji(E.warn, "Message cannot be empty."), {
+        reply_markup: menu,
+      });
       return;
     }
 
@@ -256,14 +324,28 @@ export function registerCommands(
       return;
     }
 
+    const index = Number.parseInt(roomToken, 10);
+    const roomIndex = Number.isFinite(index) && index >= 1 ? index : null;
+
     try {
-      const message = await client.sendMessage(roomId, content);
-      state.setLastNotifiedMessageId(roomId, message.id);
-      await state.save();
+      await deliverRoomMessage(client, state, roomId, content);
       await ctx.reply(withEmoji(E.sent, "Sent."), { reply_markup: menu });
+      await sendReadView(ctx, config, client, state, roomId, roomIndex);
     } catch (error) {
       console.error("[bot] /send failed:", error);
-      await ctx.reply(withEmoji(E.warn, "Could not send message."), { reply_markup: menu });
+      await ctx.reply(withEmoji(E.warn, "Could not send message."), {
+        reply_markup: menu,
+      });
+    }
+  });
+
+  bot.command("cancel", async (ctx) => {
+    if (!(await ensureAllowed(ctx, config, state))) {
+      return;
+    }
+    const cancelled = await cancelCompose(ctx, menu);
+    if (!cancelled) {
+      await ctx.reply("Nothing to cancel.", { reply_markup: menu });
     }
   });
 

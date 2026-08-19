@@ -9,16 +9,33 @@ import {
   roomIndexForId,
   sendReadView,
 } from "./read-actions.js";
+import { startCompose } from "./send-actions.js";
 import { readKeyboard, type ReadViewPage } from "./read-view.js";
 import { getReadSession } from "./read-sessions.js";
+import { clearComposeSession } from "./compose-sessions.js";
 import {
   buildSettingsText,
   manageChatsKeyboard,
   manageChatsText,
   settingsKeyboard,
 } from "./settings-view.js";
+import {
+  buildQuietHoursText,
+  pickQuietEndText,
+  pickQuietEndKeyboard,
+  pickQuietStartText,
+  pickQuietStartKeyboard,
+  pickQuietTimezoneText,
+  pickQuietTimezoneKeyboard,
+  quietHoursKeyboard,
+} from "./quiet-hours-view.js";
+import {
+  fromClockToken,
+  timezoneOptionById,
+} from "./quiet-hours.js";
 import { buildRoomsText, roomsKeyboard, sortRoomsForDisplay, ROOMS_PAGE_SIZE } from "./rooms-view.js";
 import { HELP_TEXT } from "./text.js";
+import { E, withEmoji } from "./emoji.js";
 import type { Config } from "../config.js";
 import { SokosumiClient, type ChatRoom } from "../sokosumi/client.js";
 import type { StateStore } from "../state.js";
@@ -127,6 +144,23 @@ async function refreshManageChats(
   );
 }
 
+async function refreshQuietHours(
+  bot: Bot,
+  state: StateStore,
+  chatId: number,
+  messageId: number,
+): Promise<void> {
+  await bot.api.editMessageText(
+    chatId,
+    messageId,
+    buildQuietHoursText(state),
+    {
+      parse_mode: "HTML",
+      reply_markup: quietHoursKeyboard(state),
+    },
+  );
+}
+
 export function registerCallbacks(
   bot: Bot,
   config: Config,
@@ -162,6 +196,188 @@ export function registerCallbacks(
         const index = roomIndexForId(state, roomId);
         await ctx.answerCallbackQuery();
         await sendReadView(ctx, config, client, state, roomId, index);
+        return;
+      }
+
+      if (data === "settings:quiet") {
+        if (!ctx.callbackQuery.message) {
+          await safeAnswerCallback(ctx);
+          return;
+        }
+        await safeAnswerCallback(ctx);
+        await bot.api.editMessageText(
+          ctx.callbackQuery.message.chat.id,
+          ctx.callbackQuery.message.message_id,
+          buildQuietHoursText(state),
+          {
+            parse_mode: "HTML",
+            reply_markup: quietHoursKeyboard(state),
+          },
+        );
+        return;
+      }
+
+      if (data === "quiet:on") {
+        state.setQuietHoursEnabled(true);
+        await state.save();
+        await safeAnswerCallback(ctx, { text: "Quiet hours on" });
+        if (ctx.callbackQuery.message) {
+          await refreshQuietHours(
+            bot,
+            state,
+            ctx.callbackQuery.message.chat.id,
+            ctx.callbackQuery.message.message_id,
+          );
+        }
+        return;
+      }
+
+      if (data === "quiet:off") {
+        state.setQuietHoursEnabled(false);
+        await state.save();
+        await safeAnswerCallback(ctx, { text: "Quiet hours off" });
+        if (ctx.callbackQuery.message) {
+          await refreshQuietHours(
+            bot,
+            state,
+            ctx.callbackQuery.message.chat.id,
+            ctx.callbackQuery.message.message_id,
+          );
+        }
+        return;
+      }
+
+      if (data === "quiet:pick:start") {
+        if (!ctx.callbackQuery.message) {
+          await safeAnswerCallback(ctx);
+          return;
+        }
+        await safeAnswerCallback(ctx);
+        await bot.api.editMessageText(
+          ctx.callbackQuery.message.chat.id,
+          ctx.callbackQuery.message.message_id,
+          pickQuietStartText(state),
+          {
+            parse_mode: "HTML",
+            reply_markup: pickQuietStartKeyboard(),
+          },
+        );
+        return;
+      }
+
+      if (data === "quiet:pick:end") {
+        if (!ctx.callbackQuery.message) {
+          await safeAnswerCallback(ctx);
+          return;
+        }
+        await safeAnswerCallback(ctx);
+        await bot.api.editMessageText(
+          ctx.callbackQuery.message.chat.id,
+          ctx.callbackQuery.message.message_id,
+          pickQuietEndText(state),
+          {
+            parse_mode: "HTML",
+            reply_markup: pickQuietEndKeyboard(),
+          },
+        );
+        return;
+      }
+
+      if (data === "quiet:pick:tz") {
+        if (!ctx.callbackQuery.message) {
+          await safeAnswerCallback(ctx);
+          return;
+        }
+        await safeAnswerCallback(ctx);
+        await bot.api.editMessageText(
+          ctx.callbackQuery.message.chat.id,
+          ctx.callbackQuery.message.message_id,
+          pickQuietTimezoneText(state),
+          {
+            parse_mode: "HTML",
+            reply_markup: pickQuietTimezoneKeyboard(),
+          },
+        );
+        return;
+      }
+
+      if (data.startsWith("quiet:ps:")) {
+        const token = data.slice("quiet:ps:".length);
+        const time = fromClockToken(token);
+        if (!time) {
+          await safeAnswerCallback(ctx, { text: "Invalid time" });
+          return;
+        }
+        state.setQuietHoursStart(time);
+        await state.save();
+        await safeAnswerCallback(ctx, { text: "Start time updated" });
+        if (ctx.callbackQuery.message) {
+          await refreshQuietHours(
+            bot,
+            state,
+            ctx.callbackQuery.message.chat.id,
+            ctx.callbackQuery.message.message_id,
+          );
+        }
+        return;
+      }
+
+      if (data.startsWith("quiet:pe:")) {
+        const token = data.slice("quiet:pe:".length);
+        const time = fromClockToken(token);
+        if (!time) {
+          await safeAnswerCallback(ctx, { text: "Invalid time" });
+          return;
+        }
+        state.setQuietHoursEnd(time);
+        await state.save();
+        await safeAnswerCallback(ctx, { text: "End time updated" });
+        if (ctx.callbackQuery.message) {
+          await refreshQuietHours(
+            bot,
+            state,
+            ctx.callbackQuery.message.chat.id,
+            ctx.callbackQuery.message.message_id,
+          );
+        }
+        return;
+      }
+
+      if (data.startsWith("quiet:tz:")) {
+        const id = Number.parseInt(data.slice("quiet:tz:".length), 10);
+        const option = timezoneOptionById(id);
+        if (!option) {
+          await safeAnswerCallback(ctx, { text: "Unknown timezone" });
+          return;
+        }
+        state.setQuietHoursTimezone(option.iana);
+        await state.save();
+        await safeAnswerCallback(ctx, { text: `Timezone: ${option.label}` });
+        if (ctx.callbackQuery.message) {
+          await refreshQuietHours(
+            bot,
+            state,
+            ctx.callbackQuery.message.chat.id,
+            ctx.callbackQuery.message.message_id,
+          );
+        }
+        return;
+      }
+
+      if (data.startsWith("compose:oid:")) {
+        const roomId = data.slice("compose:oid:".length);
+        await safeAnswerCallback(ctx);
+        await startCompose(ctx, client, state, roomId);
+        return;
+      }
+
+      if (data === "compose:cancel") {
+        const chatId = ctx.chat?.id;
+        const cleared = chatId ? clearComposeSession(String(chatId)) : false;
+        await safeAnswerCallback(ctx, { text: cleared ? "Cancelled" : "OK" });
+        if (cleared) {
+          await ctx.reply(withEmoji(E.back, "Reply cancelled."));
+        }
         return;
       }
 

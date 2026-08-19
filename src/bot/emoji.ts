@@ -19,6 +19,7 @@ export const E = {
   older: "⬆️",
   open: "↗️",
   view: "👁",
+  reply: "✏️",
   refresh: "🔄",
   back: "◀️",
   next: "▶️",

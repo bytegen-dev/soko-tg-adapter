@@ -19,6 +19,7 @@ import {
   updateReadSession,
 } from "./read-sessions.js";
 import type { StateStore } from "../state.js";
+import { escapeHtml } from "./text.js";
 
 export function roomIndexForId(state: StateStore, roomId: string): number | null {
   const index = state.snapshot.roomOrder.indexOf(roomId);
@@ -53,7 +54,7 @@ export async function sendReadView(
 
   const { messages, nextCursor } = await loadReadPage(client, roomId);
   if (messages.length === 0) {
-    const text = `<b>${title}</b>\n\nNo messages yet.`;
+    const text = `<b>${escapeHtml(title)}</b>\n\nNo messages yet.`;
     if (options?.editMessageId) {
       await ctx.editMessageText(text, { parse_mode: "HTML" });
     } else {

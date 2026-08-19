@@ -7,6 +7,7 @@ import {
   sortRoomsForDisplay,
   ROOMS_PAGE_SIZE,
 } from "./rooms-view.js";
+import { describeQuietHours } from "./quiet-hours.js";
 
 export function buildSettingsText(
   state: StateStore,
@@ -23,6 +24,7 @@ export function buildSettingsText(
     `Organization: ${orgSlug}`,
     `Poll interval: ${pollIntervalMs}ms`,
     `Global mute: ${globalMute ? `${E.muted} on` : `${E.unmute} off`}`,
+    `Quiet hours: ${describeQuietHours(state.snapshot)}`,
     `Muted chats: ${mutedCount}`,
   ];
 
@@ -47,6 +49,7 @@ export function settingsKeyboard(state: StateStore): InlineKeyboard {
     keyboard.text(withEmoji(E.mute, "Mute all"), "settings:muteall");
   }
   keyboard.row().text(withEmoji(E.refresh, "Refresh"), "settings:refresh");
+  keyboard.row().text(withEmoji(E.mute, "Quiet hours"), "settings:quiet");
   keyboard.row().text(withEmoji(E.chats, "Manage chats"), "settings:chats:0");
   keyboard.row().text(withEmoji(E.help, "Help"), "settings:help");
   return keyboard;
