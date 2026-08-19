@@ -84,7 +84,7 @@ export class SokosumiClient {
       cursor = nextCursor;
     }
 
-    return rooms.filter(isHumanDirectRoom);
+    return rooms.filter(isNotifiableDirectRoom);
   }
 
   async listRoomMessages(
@@ -137,7 +137,25 @@ export function isHumanDirectRoom(room: ChatRoom): boolean {
   return room.kind === "direct" && room.coworkerMembers.length === 0;
 }
 
+/** 1:1 direct with a single AI coworker (e.g. Alex). */
+export function isCoworkerDirectRoom(room: ChatRoom): boolean {
+  return (
+    room.kind === "direct" &&
+    room.coworkerMembers.length === 1 &&
+    room.userMembers.length === 1
+  );
+}
+
+/** Human 1:1/group DMs and coworker 1:1 DMs — not channels. */
+export function isNotifiableDirectRoom(room: ChatRoom): boolean {
+  return isHumanDirectRoom(room) || isCoworkerDirectRoom(room);
+}
+
 export function roomDisplayName(room: ChatRoom, selfUserId?: string): string {
+  if (isCoworkerDirectRoom(room)) {
+    return room.coworkerMembers[0]?.name ?? room.name ?? room.slug;
+  }
+
   if (room.userMembers.length === 0) {
     return room.name || room.slug;
   }

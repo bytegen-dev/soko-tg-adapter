@@ -7,8 +7,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "dev": "tsx watch --env-file=.env src/index.ts",
+    "start": "tsx --env-file=.env src/index.ts",
+    "get-chat-id": "node --env-file=.env scripts/get-chat-id.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

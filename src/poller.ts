@@ -2,6 +2,7 @@ import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 
 import type { Config } from "./config.js";
+import { getAllowedChatIds } from "./bot/access.js";
 import {
   messageSenderName,
   roomDisplayName,
@@ -104,7 +105,7 @@ export class MessagePoller {
       this.bootstrapped = true;
       await this.state.save();
       console.log(
-        `[poller] bootstrapped ${rooms.length} human DM(s); live alerts on`,
+        `[poller] bootstrapped ${rooms.length} direct DM(s); live alerts on`,
       );
     }
   }
@@ -176,10 +177,15 @@ export class MessagePoller {
   }
 
   private async notifyAll(room: ChatRoom, message: ChatRoomMessage): Promise<void> {
+    const chatIds = getAllowedChatIds(this.config, this.state);
+    if (chatIds.length === 0) {
+      return;
+    }
+
     const text = formatAlert(room, message);
     const keyboard = this.roomKeyboard(room.id);
     await Promise.all(
-      this.config.TELEGRAM_ALLOWED_CHAT_IDS.map((chatId) =>
+      chatIds.map((chatId) =>
         this.bot.api.sendMessage(chatId, text, {
           parse_mode: "HTML",
           reply_markup: keyboard,

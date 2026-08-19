@@ -1,6 +1,7 @@
-import type { Bot, Context } from "grammy";
+import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 
+import { ensureAllowed } from "./access.js";
 import type { Config } from "../config.js";
 import {
   messageSenderName,
@@ -32,22 +33,6 @@ function resolveRoomId(state: StateStore, token: string): string | null {
   return state.snapshot.roomOrder[index - 1] ?? null;
 }
 
-function isAllowed(config: Config, chatId: number): boolean {
-  return config.TELEGRAM_ALLOWED_CHAT_IDS.includes(String(chatId));
-}
-
-async function denyUnlessAllowed(
-  ctx: Context,
-  config: Config,
-): Promise<boolean> {
-  const chatId = ctx.chat?.id;
-  if (!chatId || !isAllowed(config, chatId)) {
-    await ctx.reply("This bot is private.");
-    return false;
-  }
-  return true;
-}
-
 export function registerCommands(
   bot: Bot,
   config: Config,
@@ -55,12 +40,12 @@ export function registerCommands(
   state: StateStore,
 ): void {
   bot.command("start", async (ctx) => {
-    if (!(await denyUnlessAllowed(ctx, config))) {
+    if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
     await ctx.reply(
       [
-        "Sokosumi human DM alerts are on.",
+        "Sokosumi DM alerts are on (humans + coworker agents like Alex).",
         "",
         "Commands:",
         "/rooms — list org DMs",
@@ -72,16 +57,16 @@ export function registerCommands(
   });
 
   bot.command("status", async (ctx) => {
-    if (!(await denyUnlessAllowed(ctx, config))) {
+    if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
     await ctx.reply(
-      `Polling every ${config.POLL_INTERVAL_MS}ms for org human DMs (${config.SOKOSUMI_ORG_SLUG}).`,
+      `Polling every ${config.POLL_INTERVAL_MS}ms for direct DMs (${config.SOKOSUMI_ORG_SLUG}) — humans + coworker 1:1.`,
     );
   });
 
   bot.command("rooms", async (ctx) => {
-    if (!(await denyUnlessAllowed(ctx, config))) {
+    if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
 
@@ -91,7 +76,7 @@ export function registerCommands(
       await state.save();
 
       if (rooms.length === 0) {
-        await ctx.reply("No human DMs in this org yet.");
+        await ctx.reply("No direct DMs yet (humans or coworker agents).");
         return;
       }
 
@@ -110,7 +95,7 @@ export function registerCommands(
   });
 
   bot.command("read", async (ctx) => {
-    if (!(await denyUnlessAllowed(ctx, config))) {
+    if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
 
@@ -161,7 +146,7 @@ export function registerCommands(
   });
 
   bot.command("send", async (ctx) => {
-    if (!(await denyUnlessAllowed(ctx, config))) {
+    if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
 
@@ -197,7 +182,7 @@ export function registerCommands(
   });
 
   bot.command("help", async (ctx) => {
-    if (!(await denyUnlessAllowed(ctx, config))) {
+    if (!(await ensureAllowed(ctx, config, state))) {
       return;
     }
     await ctx.reply(

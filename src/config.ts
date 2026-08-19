@@ -4,7 +4,8 @@ const envSchema = z.object({
   TELEGRAM_BOT_TOKEN: z.string().min(1),
   TELEGRAM_ALLOWED_CHAT_IDS: z
     .string()
-    .min(1)
+    .optional()
+    .default("")
     .transform((value) =>
       value
         .split(",")
@@ -16,7 +17,7 @@ const envSchema = z.object({
   SOKOSUMI_CORE_BASE_URL: z
     .string()
     .url()
-    .default("https://core.sokosumi.com"),
+    .default("https://api.sokosumi.com"),
   SOKOSUMI_WEB_BASE_URL: z
     .string()
     .url()
@@ -27,5 +28,17 @@ const envSchema = z.object({
 export type Config = z.infer<typeof envSchema>;
 
 export function loadConfig(): Config {
-  return envSchema.parse(process.env);
+  try {
+    return envSchema.parse(process.env);
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      console.error(
+        "[config] Missing or invalid environment variables.\n" +
+          "  1. cp .env.example .env\n" +
+          "  2. Fill in TELEGRAM_BOT_TOKEN, SOKOSUMI_API_KEY, SOKOSUMI_ORG_SLUG\n" +
+          "  3. pnpm dev → message /start in Telegram",
+      );
+    }
+    throw error;
+  }
 }

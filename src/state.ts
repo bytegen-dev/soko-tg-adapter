@@ -8,11 +8,14 @@ export interface BotState {
   selfUserId?: string;
   /** Room list cache for /read shorthand by index. */
   roomOrder: string[];
+  /** First /start when no allowlist is configured. */
+  registeredChatIds: string[];
 }
 
 const DEFAULT_STATE: BotState = {
   lastNotifiedMessageId: {},
   roomOrder: [],
+  registeredChatIds: [],
 };
 
 export class StateStore {
@@ -35,6 +38,7 @@ export class StateStore {
         lastNotifiedMessageId: parsed.lastNotifiedMessageId ?? {},
         selfUserId: parsed.selfUserId,
         roomOrder: parsed.roomOrder ?? [],
+        registeredChatIds: parsed.registeredChatIds ?? [],
       };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -67,6 +71,12 @@ export class StateStore {
   seedLastNotifiedMessageId(roomId: string, messageId: string): void {
     if (!this.state.lastNotifiedMessageId[roomId]) {
       this.state.lastNotifiedMessageId[roomId] = messageId;
+    }
+  }
+
+  registerChatId(chatId: string): void {
+    if (!this.state.registeredChatIds.includes(chatId)) {
+      this.state.registeredChatIds.push(chatId);
     }
   }
 }
