@@ -2,6 +2,7 @@ import { Bot } from "grammy";
 
 import { registerCommands } from "./bot/commands.js";
 import { registerCallbacks } from "./bot/callbacks.js";
+import { startTelegramPolling } from "./bot/telegram-poll.js";
 import { loadConfig } from "./config.js";
 import { startHealthServer } from "./health.js";
 import { MessagePoller } from "./poller.js";
@@ -36,7 +37,8 @@ async function main(): Promise<void> {
   poller.start();
 
   bot.catch((error) => {
-    console.error("[telegram] update error:", error.error ?? error);
+    const err = error.error ?? error;
+    console.error("[telegram] update error:", err);
   });
 
   const healthPort = config.PORT ?? Number(process.env.PORT ?? 8080);
@@ -76,7 +78,7 @@ async function main(): Promise<void> {
     void shutdown("SIGINT");
   });
 
-  await bot.start();
+  await startTelegramPolling(bot);
 }
 
 main().catch((error) => {
