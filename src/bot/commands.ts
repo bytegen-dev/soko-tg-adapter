@@ -1,17 +1,16 @@
 import type { Bot, Context } from "grammy";
 
 import { ensureAllowed } from "./access.js";
-import { mainMenuKeyboard, MENU_LABELS } from "./menu-keyboard.js";
+import { mainMenuKeyboard, matchMenuKey, type MenuKey } from "./menu-keyboard.js";
 import { resolveRoomId } from "./resolve-room.js";
 import { sendReadView } from "./read-actions.js";
 import { buildRoomsText, roomsKeyboard } from "./rooms-view.js";
 import { buildSettingsText, settingsKeyboard } from "./settings-view.js";
-import { HELP_TEXT, START_TEXT } from "./text.js";
+import { HELP_TEXT, START_TEXT, LOADING_CHATS, LOADING_SETTINGS, ERROR_LOAD_CHATS, ERROR_LOAD_SETTINGS, ERROR_GENERIC } from "./text.js";
+import { E, withEmoji } from "./emoji.js";
 import type { Config } from "../config.js";
 import { SokosumiClient } from "../sokosumi/client.js";
 import type { StateStore } from "../state.js";
-
-const MENU_VALUES = new Set<string>(Object.values(MENU_LABELS));
 
 function matchCommandArg(ctx: Context): string {
   const m = ctx.match;
@@ -36,11 +35,13 @@ async function syncRooms(
 
 function statusText(config: Config, state: StateStore): string {
   const muted = state.snapshot.muteAll
-    ? "all muted"
+    ? `${E.muted} all muted`
     : state.snapshot.mutedRoomIds.length > 0
-      ? `${state.snapshot.mutedRoomIds.length} chat(s) muted`
-      : "alerts on";
+      ? `${E.muted} ${state.snapshot.mutedRoomIds.length} chat(s) muted`
+      : `${E.unmute} alerts on`;
   return [
+    `${E.status} Status`,
+    "",
     `Organization: ${config.SOKOSUMI_ORG_SLUG}`,
     `Poll interval: ${config.POLL_INTERVAL_MS}ms`,
     `Alerts: ${muted}`,
@@ -53,7 +54,7 @@ async function replyRooms(
   state: StateStore,
   menu: ReturnType<typeof mainMenuKeyboard>,
 ): Promise<void> {
-  const loading = await ctx.reply("Loading chats...", { reply_markup: menu });
+  const loading = await ctx.reply(LOADING_CHATS, { reply_markup: menu });
   try {
     const rooms = await syncRooms(client, state);
     await ctx.api.editMessageText(
@@ -70,7 +71,7 @@ async function replyRooms(
     await ctx.api.editMessageText(
       loading.chat.id,
       loading.message_id,
-      "Could not load chats. Check API key and org slug.",
+      ERROR_LOAD_CHATS,
     );
   }
 }
@@ -82,7 +83,7 @@ async function replySettings(
   state: StateStore,
   menu: ReturnType<typeof mainMenuKeyboard>,
 ): Promise<void> {
-  const loading = await ctx.reply("Loading settings...", { reply_markup: menu });
+  const loading = await ctx.reply(LOADING_SETTINGS, { reply_markup: menu });
   try {
     const rooms = await syncRooms(client, state);
     await ctx.api.editMessageText(
@@ -104,7 +105,7 @@ async function replySettings(
     await ctx.api.editMessageText(
       loading.chat.id,
       loading.message_id,
-      "Could not load settings.",
+      ERROR_LOAD_SETTINGS,
     );
   }
 }
@@ -117,6 +118,14 @@ export function registerCommands(
 ): void {
   const menu = mainMenuKeyboard();
 
+  bot.use(async (ctx, next) => {
+    const text = ctx.message?.text;
+    if (text) {
+      console.log(`[bot] message: ${text.slice(0, 80)}`);
+    }
+    await next();
+  });
+
   bot.command("start", async (ctx) => {
     try {
       if (!(await ensureAllowed(ctx, config, state))) {
@@ -125,7 +134,7 @@ export function registerCommands(
       await ctx.reply(START_TEXT, { reply_markup: menu });
     } catch (error) {
       console.error("[bot] /start failed:", error);
-      await ctx.reply("Something went wrong. Try again in a moment.", {
+      await ctx.reply(ERROR_GENERIC, {
         reply_markup: menu,
       });
     }
@@ -160,27 +169,30 @@ export function registerCommands(
   });
 
   bot.on("message:text").filter(
-    (ctx) => MENU_VALUES.has(ctx.message.text.trim()),
+    (ctx) => matchMenuKey(ctx.message.text) !== null,
     async (ctx) => {
       if (!(await ensureAllowed(ctx, config, state))) {
         return;
       }
 
-      const label = ctx.message.text.trim();
-      if (label === MENU_LABELS.chats) {
-        await replyRooms(ctx, client, state, menu);
+      const key = matchMenuKey(ctx.message.text);
+      if (!key) {
         return;
       }
-      if (label === MENU_LABELS.settings) {
-        await replySettings(ctx, config, client, state, menu);
-        return;
-      }
-      if (label === MENU_LABELS.help) {
-        await ctx.reply(HELP_TEXT, { reply_markup: menu });
-        return;
-      }
-      if (label === MENU_LABELS.status) {
-        await ctx.reply(statusText(config, state), { reply_markup: menu });
+
+      switch (key) {
+        case "chats":
+          await replyRooms(ctx, client, state, menu);
+          break;
+        case "settings":
+          await replySettings(ctx, config, client, state, menu);
+          break;
+        case "help":
+          await ctx.reply(HELP_TEXT, { reply_markup: menu });
+          break;
+        case "status":
+          await ctx.reply(statusText(config, state), { reply_markup: menu });
+          break;
       }
     },
   );
@@ -211,7 +223,7 @@ export function registerCommands(
       await sendReadView(ctx, config, client, state, roomId, roomIndex);
     } catch (error) {
       console.error("[bot] /read failed:", error);
-      await ctx.reply("Could not load messages for that chat.", {
+      await ctx.reply(withEmoji(E.warn, "Could not load messages for that chat."), {
         reply_markup: menu,
       });
     }
@@ -248,10 +260,10 @@ export function registerCommands(
       const message = await client.sendMessage(roomId, content);
       state.setLastNotifiedMessageId(roomId, message.id);
       await state.save();
-      await ctx.reply("Sent.", { reply_markup: menu });
+      await ctx.reply(withEmoji(E.sent, "Sent."), { reply_markup: menu });
     } catch (error) {
       console.error("[bot] /send failed:", error);
-      await ctx.reply("Could not send message.", { reply_markup: menu });
+      await ctx.reply(withEmoji(E.warn, "Could not send message."), { reply_markup: menu });
     }
   });
 
@@ -276,7 +288,10 @@ export function registerCommands(
       state.unmuteRoom(roomId);
     }
     await state.save();
-    await ctx.reply(mute ? "Chat muted." : "Chat unmuted.", { reply_markup: menu });
+    await ctx.reply(
+      mute ? withEmoji(E.mute, "Chat muted.") : withEmoji(E.unmute, "Chat unmuted."),
+      { reply_markup: menu },
+    );
   }
 
   bot.command("mute", async (ctx) => {
@@ -299,7 +314,7 @@ export function registerCommands(
     }
     state.setMuteAll(true);
     await state.save();
-    await ctx.reply("All alerts muted.", { reply_markup: menu });
+    await ctx.reply(withEmoji(E.mute, "All alerts muted."), { reply_markup: menu });
   });
 
   bot.command("unmuteall", async (ctx) => {
@@ -308,6 +323,6 @@ export function registerCommands(
     }
     state.unmuteAll();
     await state.save();
-    await ctx.reply("All alerts unmuted.", { reply_markup: menu });
+    await ctx.reply(withEmoji(E.unmute, "All alerts unmuted."), { reply_markup: menu });
   });
 }

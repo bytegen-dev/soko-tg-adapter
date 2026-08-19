@@ -2,6 +2,7 @@ import { InlineKeyboard } from "grammy";
 
 import { roomDisplayName, type ChatRoom } from "../sokosumi/client.js";
 import type { StateStore } from "../state.js";
+import { E, roomListPrefix, withEmoji } from "./emoji.js";
 
 export const ROOMS_PAGE_SIZE = 6;
 const MAX_BUTTON_LABEL = 36;
@@ -26,16 +27,14 @@ export function roomButtonLabel(
   selfUserId: string | undefined,
 ): string {
   const name = roomDisplayName(room, selfUserId);
-  let label = name;
+  const prefix = roomListPrefix(room, state.isRoomMuted(room.id));
+  let label = `${prefix} ${name}`;
 
   if (room.unreadCount > 0) {
-    label = `${name} (${room.unreadCount})`;
+    label = `${label} (${room.unreadCount})`;
   }
   if (room.unreadMentionCount > 0) {
-    label = `${label}, ${room.unreadMentionCount} mention${room.unreadMentionCount === 1 ? "" : "s"}`;
-  }
-  if (state.isRoomMuted(room.id)) {
-    label = `${label}, muted`;
+    label = `${label} ${E.mention}${room.unreadMentionCount}`;
   }
   if (label.length > MAX_BUTTON_LABEL) {
     return `${label.slice(0, MAX_BUTTON_LABEL - 1)}…`;
@@ -45,7 +44,7 @@ export function roomButtonLabel(
 
 export function buildRoomsText(rooms: ChatRoom[], page = 0): string {
   if (rooms.length === 0) {
-    return "No chats yet. Direct messages and channels will show up here.";
+    return `${E.chats} No chats yet. Direct messages and channels will show up here.`;
   }
 
   const totalPages = Math.ceil(rooms.length / ROOMS_PAGE_SIZE);
@@ -54,13 +53,17 @@ export function buildRoomsText(rooms: ChatRoom[], page = 0): string {
     (sum, room) => sum + room.unreadMentionCount,
     0,
   );
-  const lines = ["<b>Chats</b>"];
+  const lines = [`<b>${E.chats} Chats</b>`];
 
+  const stats: string[] = [];
   if (unreadTotal > 0) {
-    lines.push(`${unreadTotal} unread`);
+    stats.push(`${E.unread} ${unreadTotal} unread`);
   }
   if (mentionTotal > 0) {
-    lines.push(`${mentionTotal} mention${mentionTotal === 1 ? "" : "s"}`);
+    stats.push(`${E.mention} ${mentionTotal} mention${mentionTotal === 1 ? "" : "s"}`);
+  }
+  if (stats.length > 0) {
+    lines.push(stats.join(" · "));
   }
 
   if (totalPages > 1) {
@@ -91,14 +94,16 @@ export function roomsKeyboard(
   const totalPages = Math.ceil(sorted.length / ROOMS_PAGE_SIZE);
   if (totalPages > 1) {
     if (page > 0) {
-      keyboard.text("Previous", `rooms:page:${page - 1}`);
+      keyboard.text(withEmoji(E.back, "Previous"), `rooms:page:${page - 1}`);
     }
     if (page < totalPages - 1) {
-      keyboard.text("Next", `rooms:page:${page + 1}`);
+      keyboard.text(withEmoji(E.next, "Next"), `rooms:page:${page + 1}`);
     }
     keyboard.row();
   }
 
-  keyboard.text("Refresh", "rooms:page:0").text("Settings", "settings:refresh");
+  keyboard
+    .text(withEmoji(E.refresh, "Refresh"), "rooms:page:0")
+    .text(withEmoji(E.settings, "Settings"), "settings:refresh");
   return keyboard;
 }

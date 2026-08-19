@@ -4,6 +4,7 @@ import { InlineKeyboard } from "grammy";
 import type { Config } from "./config.js";
 import { getAllowedChatIds } from "./bot/access.js";
 import { escapeHtml } from "./bot/text.js";
+import { E, roomEmoji, withEmoji } from "./bot/emoji.js";
 import {
   messageSenderName,
   roomDisplayName,
@@ -37,7 +38,8 @@ function formatAlert(room: ChatRoom, message: ChatRoomMessage): string {
   const title = roomDisplayName(room, undefined);
   const sender = messageSenderName(message);
   const body = truncate(message.content);
-  return `<b>${escapeHtml(title)}</b>\n<b>${escapeHtml(sender)}:</b> ${escapeHtml(body)}`;
+  const icon = roomEmoji(room);
+  return `${icon} <b>${escapeHtml(title)}</b>\n<b>${escapeHtml(sender)}:</b> ${escapeHtml(body)}`;
 }
 
 export class MessagePoller {
@@ -167,10 +169,10 @@ export class MessagePoller {
 
   private roomKeyboard(roomId: string): InlineKeyboard {
     const keyboard = new InlineKeyboard();
-    keyboard.text("View chat", `read:oid:${roomId}`);
-    keyboard.row().url("Open in Sokosumi", buildChatRoomUrl(this.config, roomId));
+    keyboard.text(withEmoji(E.view, "View"), `read:oid:${roomId}`);
+    keyboard.row().url(withEmoji(E.open, "Open"), buildChatRoomUrl(this.config, roomId));
     if (!this.state.isRoomMuted(roomId)) {
-      keyboard.row().text("Mute chat", `mute:oid:${roomId}`);
+      keyboard.row().text(withEmoji(E.mute, "Mute"), `mute:oid:${roomId}`);
     }
     return keyboard;
   }

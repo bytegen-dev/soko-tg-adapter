@@ -8,6 +8,7 @@ import {
 } from "../sokosumi/client.js";
 import { buildChatRoomUrl } from "../sokosumi/links.js";
 import type { StateStore } from "../state.js";
+import { E, withEmoji } from "./emoji.js";
 import { escapeHtml } from "./text.js";
 
 export const READ_PAGE_SIZE = 12;
@@ -53,21 +54,23 @@ export function readKeyboard(
 ): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   if (page.nextCursor && page.sessionId) {
-    keyboard.text("Older messages", `read:old:${page.sessionId}`);
+    keyboard.text(withEmoji(E.older, "Older"), `read:old:${page.sessionId}`);
   }
-  keyboard.row().url("Open in Sokosumi", buildChatRoomUrl(config, page.roomId));
+  keyboard
+    .row()
+    .url(withEmoji(E.open, "Open in Sokosumi"), buildChatRoomUrl(config, page.roomId));
 
   const muted = state.isRoomMuted(page.roomId);
   if (page.roomIndex !== null) {
     if (muted) {
-      keyboard.text("Unmute chat", `unmute:${page.roomIndex}`);
+      keyboard.text(withEmoji(E.unmute, "Unmute"), `unmute:${page.roomIndex}`);
     } else {
-      keyboard.text("Mute chat", `mute:${page.roomIndex}`);
+      keyboard.text(withEmoji(E.mute, "Mute"), `mute:${page.roomIndex}`);
     }
   } else if (muted) {
-    keyboard.text("Unmute chat", `unmute:oid:${page.roomId}`);
+    keyboard.text(withEmoji(E.unmute, "Unmute"), `unmute:oid:${page.roomId}`);
   } else {
-    keyboard.text("Mute chat", `mute:oid:${page.roomId}`);
+    keyboard.text(withEmoji(E.mute, "Mute"), `mute:oid:${page.roomId}`);
   }
   return keyboard;
 }

@@ -47,6 +47,7 @@ export async function ensureAllowed(
     return true;
   }
 
+  console.warn(`[bot] rejected chat ${id} (not in allowlist)`);
   await ctx.reply("This bot is private.");
   return false;
 }

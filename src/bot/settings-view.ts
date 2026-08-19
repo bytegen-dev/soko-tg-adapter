@@ -2,6 +2,7 @@ import { InlineKeyboard } from "grammy";
 
 import { roomDisplayName, type ChatRoom } from "../sokosumi/client.js";
 import type { StateStore } from "../state.js";
+import { E, withEmoji } from "./emoji.js";
 import {
   sortRoomsForDisplay,
   ROOMS_PAGE_SIZE,
@@ -17,11 +18,11 @@ export function buildSettingsText(
   const globalMute = state.snapshot.muteAll;
 
   const lines = [
-    "<b>Settings</b>",
+    `<b>${E.settings} Settings</b>`,
     "",
     `Organization: ${orgSlug}`,
     `Poll interval: ${pollIntervalMs}ms`,
-    `Global mute: ${globalMute ? "on" : "off"}`,
+    `Global mute: ${globalMute ? `${E.muted} on` : `${E.unmute} off`}`,
     `Muted chats: ${mutedCount}`,
   ];
 
@@ -41,13 +42,13 @@ export function buildSettingsText(
 export function settingsKeyboard(state: StateStore): InlineKeyboard {
   const keyboard = new InlineKeyboard();
   if (state.snapshot.muteAll) {
-    keyboard.text("Unmute all", "settings:unmuteall");
+    keyboard.text(withEmoji(E.unmute, "Unmute all"), "settings:unmuteall");
   } else {
-    keyboard.text("Mute all", "settings:muteall");
+    keyboard.text(withEmoji(E.mute, "Mute all"), "settings:muteall");
   }
-  keyboard.row().text("Refresh", "settings:refresh");
-  keyboard.row().text("Manage chats", "settings:chats:0");
-  keyboard.row().text("Help", "settings:help");
+  keyboard.row().text(withEmoji(E.refresh, "Refresh"), "settings:refresh");
+  keyboard.row().text(withEmoji(E.chats, "Manage chats"), "settings:chats:0");
+  keyboard.row().text(withEmoji(E.help, "Help"), "settings:help");
   return keyboard;
 }
 
@@ -61,7 +62,9 @@ function muteActionLabel(
   mute: boolean,
 ): string {
   const name = roomDisplayName(room, selfUserId);
-  let label = mute ? `Mute ${name}` : `Unmute ${name}`;
+  let label = mute
+    ? withEmoji(E.mute, name)
+    : withEmoji(E.unmute, name);
   if (label.length > MAX_MUTE_LABEL) {
     label = `${label.slice(0, MAX_MUTE_LABEL - 1)}…`;
   }
@@ -75,16 +78,16 @@ export function manageChatsText(
 ): string {
   if (state.snapshot.muteAll) {
     return [
-      "<b>Alert settings</b>",
+      `<b>${E.mute} Alert settings</b>`,
       "",
-      "Global mute is on. No alerts are sent.",
+      `${E.muted} Global mute is on. No alerts are sent.`,
       "Use Unmute all in Settings to resume.",
     ].join("\n");
   }
 
   const sorted = sortRoomsForDisplay(rooms);
   const totalPages = Math.ceil(sorted.length / MANAGE_PAGE_SIZE);
-  const lines = ["<b>Alert settings</b>"];
+  const lines = [`<b>${E.mute} Alert settings</b>`];
 
   if (totalPages > 1) {
     lines.push(`Page ${page + 1} of ${totalPages}`);
@@ -102,7 +105,7 @@ export function manageChatsKeyboard(
   const keyboard = new InlineKeyboard();
 
   if (state.snapshot.muteAll) {
-    keyboard.text("Back to settings", "settings:refresh");
+    keyboard.text(withEmoji(E.back, "Back to settings"), "settings:refresh");
     return keyboard;
   }
 
@@ -121,14 +124,14 @@ export function manageChatsKeyboard(
   const totalPages = Math.ceil(sorted.length / MANAGE_PAGE_SIZE);
   if (totalPages > 1) {
     if (page > 0) {
-      keyboard.text("Previous", `settings:chats:${page - 1}`);
+      keyboard.text(withEmoji(E.back, "Previous"), `settings:chats:${page - 1}`);
     }
     if (page < totalPages - 1) {
-      keyboard.text("Next", `settings:chats:${page + 1}`);
+      keyboard.text(withEmoji(E.next, "Next"), `settings:chats:${page + 1}`);
     }
     keyboard.row();
   }
 
-  keyboard.text("Back to settings", "settings:refresh");
+  keyboard.text(withEmoji(E.back, "Back to settings"), "settings:refresh");
   return keyboard;
 }

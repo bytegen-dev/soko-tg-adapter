@@ -35,11 +35,12 @@ async function main(): Promise<void> {
   poller.start();
 
   bot.catch((error) => {
-    console.error("[telegram] update error:", error);
+    console.error("[telegram] update error:", error.error ?? error);
   });
 
+  const botInfo = await bot.api.getMe();
   console.log(
-    `[bot] listening; polling Sokosumi every ${config.POLL_INTERVAL_MS}ms`,
+    `[bot] @${botInfo.username} listening; polling Sokosumi every ${config.POLL_INTERVAL_MS}ms`,
   );
   await bot.start();
 }

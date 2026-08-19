@@ -30,3 +30,13 @@ Open your bot in Telegram → **`/start`**. First start links your chat. Use the
 - `/help` - full command list
 
 Alerts every ~3s with **View chat**, **Open in Sokosumi**, and **Mute chat** buttons.
+
+## Development
+
+```bash
+pnpm typecheck   # types only (runs on pre-commit)
+pnpm build       # compile to dist/ (runs on pre-push)
+pnpm check       # both
+```
+
+Husky hooks run automatically after `pnpm install`.
